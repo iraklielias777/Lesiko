@@ -6,6 +6,7 @@ import { CategoryService } from '../services/category-service';
 import { BrandService } from '../services/brand-service';
 import { ContentService } from '../services/content-service';
 import { OrderService } from '../services/order-service';
+import { supabase } from '../lib/supabase';
 
 interface StoreSettings {
   storeName: string;
@@ -51,14 +52,6 @@ interface AdminState {
   updatePromo: (content: PromoContent) => Promise<void>;
 }
 
-const MOCK_CUSTOMERS: User[] = [
-  { id: 'u1', firstName: 'Jane', lastName: 'Doe', email: 'demo@lesiko.com', role: 'customer', skinType: 'combination' },
-  { id: 'u2', firstName: 'Michael', lastName: 'Smith', email: 'michael.smith@test.com', role: 'customer', skinType: 'oily' },
-  { id: 'u3', firstName: 'Sarah', lastName: 'Johnson', email: 'sarah.j@design.co', role: 'customer', skinType: 'dry' },
-  { id: 'u4', firstName: 'Emily', lastName: 'Davis', email: 'emily.d@web.net', role: 'customer', skinType: 'sensitive' },
-  { id: 'u5', firstName: 'David', lastName: 'Wilson', email: 'david.w@tech.io', role: 'customer', skinType: 'normal' },
-];
-
 const DEFAULT_SETTINGS: StoreSettings = {
   storeName: 'LesiKo Cosmetics',
   supportEmail: 'support@lesiko.com',
@@ -79,13 +72,29 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   fetchData: async () => {
     set({ isLoading: true });
-    // Parallel fetch
-    const [loadedProducts, loadedCategories, loadedBrands, loadedPromo, loadedOrders] = await Promise.all([
+    
+    // Fetch profiles from Supabase for the customer list
+    const fetchCustomers = async (): Promise<User[]> => {
+        if (!supabase) return [];
+        const { data, error } = await supabase.from('profiles').select('*');
+        if (error) return [];
+        return data.map(p => ({
+            id: p.id,
+            email: 'Encrypted/Hidden', // Email is in Auth table, usually fetched via separate admin SDK if needed
+            firstName: p.first_name,
+            lastName: p.last_name,
+            role: p.role,
+            skinType: p.skin_type
+        }));
+    };
+
+    const [loadedProducts, loadedCategories, loadedBrands, loadedPromo, loadedOrders, loadedCustomers] = await Promise.all([
         ProductService.getAllProducts(),
         CategoryService.getCategories(),
         BrandService.getBrands(),
         ContentService.getPromoContent(),
-        OrderService.getAllOrders()
+        OrderService.getAllOrders(),
+        fetchCustomers()
     ]);
 
     set({ 
@@ -93,7 +102,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         categories: loadedCategories,
         brands: loadedBrands,
         orders: loadedOrders,
-        customers: MOCK_CUSTOMERS,
+        customers: loadedCustomers,
         settings: DEFAULT_SETTINGS,
         promoContent: loadedPromo,
         isLoading: false 
@@ -143,10 +152,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   },
 
   updateOrderStatus: async (orderId, status) => {
-    // 1. Update in Service (Persist)
     await OrderService.updateStatus(orderId, status);
-    
-    // 2. Update in Local State
     set((state) => ({
       orders: state.orders.map(o => o.id === orderId ? { ...o, status } : o)
     }));

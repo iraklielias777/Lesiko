@@ -1,49 +1,60 @@
 
 import { CategoryHierarchyItem } from '../types';
-import { CATEGORY_HIERARCHY as INITIAL_DATA } from '../constants/categories';
-
-const STORAGE_KEY = 'lesiko_categories_v2';
+import { supabase } from '../lib/supabase';
 
 export const CategoryService = {
   getCategories: async (): Promise<CategoryHierarchyItem[]> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          resolve(JSON.parse(stored));
-        } else {
-          // Initialize with default constants if storage is empty
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));
-          resolve(INITIAL_DATA);
-        }
-      }, 200);
-    });
+    if (!supabase) return [];
+    
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('label');
+
+    if (error) {
+      console.error('Error fetching categories:', error);
+      return [];
+    }
+
+    return (data || []).map(cat => ({
+      slug: cat.slug,
+      label: cat.label,
+      image: cat.image,
+      subs: Array.isArray(cat.subs) ? cat.subs : []
+    }));
   },
 
   saveCategories: async (categories: CategoryHierarchyItem[]): Promise<void> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(categories));
-        resolve();
-      }, 300);
-    });
+    if (!supabase) return;
+    
+    const items = categories.map(cat => ({
+      slug: cat.slug,
+      label: cat.label,
+      image: cat.image,
+      subs: cat.subs
+    }));
+
+    const { error } = await supabase
+      .from('categories')
+      .upsert(items, { onConflict: 'slug' });
+
+    if (error) throw error;
   },
 
   addCategory: async (category: CategoryHierarchyItem): Promise<void> => {
-    const current = await CategoryService.getCategories();
-    const updated = [...current, category];
-    await CategoryService.saveCategories(updated);
-  },
-
-  updateCategory: async (oldSlug: string, updatedCategory: CategoryHierarchyItem): Promise<void> => {
-    const current = await CategoryService.getCategories();
-    const updated = current.map(c => c.slug === oldSlug ? updatedCategory : c);
-    await CategoryService.saveCategories(updated);
+    if (!supabase) return;
+    const { error } = await supabase.from('categories').insert({
+      slug: category.slug,
+      label: category.label,
+      image: category.image,
+      subs: category.subs
+    });
+    if (error) throw error;
   },
 
   deleteCategory: async (slug: string): Promise<void> => {
-    const current = await CategoryService.getCategories();
-    const updated = current.filter(c => c.slug !== slug);
-    await CategoryService.saveCategories(updated);
+    if (!supabase) return;
+    const { error } = await supabase.from('categories').delete().eq('slug', slug);
+    if (error) throw error;
   }
 };

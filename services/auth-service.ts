@@ -7,20 +7,23 @@ export const AuthService = {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     
-    // Fetch profile
-    const { data: profile } = await supabase
+    const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', data.user.id)
       .single();
 
+    if (profileError) {
+      console.warn("Profile fetch error:", profileError);
+    }
+
     return {
       id: data.user.id,
       email: data.user.email!,
-      firstName: profile?.first_name || '',
+      firstName: profile?.first_name || 'User',
       lastName: profile?.last_name || '',
       skinType: profile?.skin_type,
-      role: profile?.role || 'customer'
+      role: (profile?.role as any) || 'customer'
     };
   },
 
@@ -28,30 +31,40 @@ export const AuthService = {
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email!,
       password: data.password,
+      options: {
+        data: {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          skinType: data.skinType
+        }
+      }
     });
-    if (authError) throw authError;
-
-    // Create profile
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({
-        id: authData.user!.id,
-        first_name: data.firstName,
-        last_name: data.lastName,
-        skin_type: data.skinType,
-        role: 'customer'
-      });
     
-    if (profileError) throw profileError;
+    if (authError) throw authError;
+    if (!authData.user) throw new Error("Signup failed");
 
     return {
-      id: authData.user!.id,
+      id: authData.user.id,
       email: data.email!,
       firstName: data.firstName || '',
       lastName: data.lastName || '',
-      skinType: data.skinType,
+      skinType: data.skinType as any,
       role: 'customer'
     };
+  },
+
+  updateProfile: async (userId: string, updates: Partial<User>): Promise<void> => {
+    if (!supabase) return;
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        first_name: updates.firstName,
+        last_name: updates.lastName,
+        skin_type: updates.skinType
+      })
+      .eq('id', userId);
+    
+    if (error) throw error;
   },
 
   logout: async (): Promise<void> => {
@@ -71,7 +84,7 @@ export const AuthService = {
     return {
       id: session.user.id,
       email: session.user.email!,
-      firstName: profile?.first_name || '',
+      firstName: profile?.first_name || 'User',
       lastName: profile?.last_name || '',
       skinType: profile?.skin_type,
       role: profile?.role || 'customer'

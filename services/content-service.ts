@@ -1,7 +1,6 @@
 
 import { PromoContent } from '../types';
-
-const STORAGE_KEY = 'lesiko_promo_content_v2';
+import { supabase } from '../lib/supabase';
 
 const DEFAULT_PROMO: PromoContent = {
   title: "Summer Glow Essentials",
@@ -16,24 +15,24 @@ const DEFAULT_PROMO: PromoContent = {
 
 export const ContentService = {
   getPromoContent: async (): Promise<PromoContent> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          resolve(JSON.parse(stored));
-        } else {
-          resolve(DEFAULT_PROMO);
-        }
-      }, 200);
-    });
+    if (!supabase) return DEFAULT_PROMO;
+    
+    const { data, error } = await supabase
+        .from('site_content')
+        .select('content')
+        .eq('key', 'homepage_promo')
+        .single();
+
+    if (error || !data) return DEFAULT_PROMO;
+    return data.content as PromoContent;
   },
 
   updatePromoContent: async (content: PromoContent): Promise<void> => {
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(content));
-        resolve();
-      }, 300);
-    });
+    if (!supabase) return;
+    const { error } = await supabase
+        .from('site_content')
+        .upsert({ key: 'homepage_promo', content });
+    
+    if (error) throw error;
   }
 };
