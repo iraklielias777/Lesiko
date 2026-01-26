@@ -12,28 +12,57 @@ import {
   X,
   Home,
   ListFilter,
-  Tag
+  Tag,
+  Loader2
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth-store';
+import { AuthService } from '../../services/auth-service';
 import { useTranslation } from 'react-i18next';
 
 export const AdminLayout = () => {
   const { t } = useTranslation();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, login, logout } = useAuthStore();
 
   useEffect(() => {
-     // Redirect if not admin
-     if (!user || user.role !== 'admin') {
-         navigate('/login');
-     }
-  }, [user, navigate]);
+    const verifyAdmin = async () => {
+      // 1. If we already have an admin user in state, we're good
+      if (user?.role === 'admin') {
+        setIsChecking(false);
+        return;
+      }
+
+      // 2. If we have a user but they aren't an admin, kick them out
+      if (user && user.role !== 'admin') {
+        navigate('/', { replace: true });
+        return;
+      }
+
+      // 3. If no user in state (e.g. page refresh), check Supabase directly
+      try {
+        const currentUser = await AuthService.getCurrentUser();
+        if (currentUser && currentUser.role === 'admin') {
+          login(currentUser); // Update store if we found them
+          setIsChecking(false);
+        } else {
+          // Not an admin or not logged in
+          navigate('/login', { replace: true });
+        }
+      } catch (error) {
+        console.error("Admin verification failed:", error);
+        navigate('/login', { replace: true });
+      }
+    };
+
+    verifyAdmin();
+  }, [user, navigate, login]);
 
   const handleLogout = () => {
       logout();
-      navigate('/login');
+      navigate('/login', { replace: true });
   };
 
   const navItems = [
@@ -46,7 +75,15 @@ export const AdminLayout = () => {
     { icon: Settings, label: t('admin.settings'), path: '/admin/settings' },
   ];
 
-  if (!user || user.role !== 'admin') return null;
+  // Show loading while verifying role
+  if (isChecking) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="w-10 h-10 text-brand-green animate-spin mb-4" />
+        <p className="text-gray-500 font-medium animate-pulse">Verifying Admin Access...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex">

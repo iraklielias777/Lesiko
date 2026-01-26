@@ -132,3 +132,14 @@ export interface PromoContent {
   image: string;
   link: string;
 }
+
+export interface SkinTypeItem {
+  key: string;
+  name: string;
+  nameKa?: string;
+  description: string;
+  descriptionKa?: string;
+  image: string;
+}
+
+export type SkinTypeContent = SkinTypeItem[];

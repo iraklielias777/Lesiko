@@ -24,14 +24,20 @@ export const LoginPage = () => {
 
     try {
       const user = await AuthService.login(formData.email, formData.password);
+      
+      // 1. Update Global Auth State
       login(user);
       
-      // Role-based redirect
-      if (user.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/account');
-      }
+      // 2. Role-based redirect with history replacement
+      // Small timeout ensures the Zustand store is committed before navigate checks role
+      setTimeout(() => {
+        if (user.role === 'admin') {
+          navigate('/admin', { replace: true });
+        } else {
+          navigate('/account', { replace: true });
+        }
+      }, 50);
+
     } catch (err: any) {
       setError(err.message || 'Failed to login. Try demo@lesiko.com / password');
     } finally {

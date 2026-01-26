@@ -48,22 +48,24 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-// Fix: explicitly import Component and use constructor to ensure props and state are correctly typed by the compiler
+// Fix: extend Component directly to ensure props and state are correctly recognized by the compiler
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false
-    };
-  }
+  // Use property initializer instead of constructor to avoid potential typing issues in some environments
+  state: ErrorBoundaryState = {
+    hasError: false
+  };
 
   static getDerivedStateFromError(_: Error): ErrorBoundaryState {
     return { hasError: true };
   }
 
   render() {
-    // Correctly accessing state and props from Component base class
-    if (this.state.hasError) {
+    // Destructure state and props to improve type recognition and satisfy the compiler
+    const { hasError } = this.state;
+    const { children } = this.props;
+
+    // Correctly accessing state and props from React.Component base class
+    if (hasError) {
       return (
         <div className="h-screen flex flex-col items-center justify-center p-4 text-center">
           <h1 className="text-2xl font-bold mb-2">Something went wrong.</h1>
@@ -72,7 +74,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
         </div>
       );
     }
-    return this.props.children;
+    return children;
   }
 }
 
