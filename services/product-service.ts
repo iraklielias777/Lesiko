@@ -3,7 +3,8 @@ import { Product, Brand, Category } from '../types';
 import { supabase } from '../lib/supabase';
 
 const mapProduct = (p: any): Product => {
-  // Supabase returns joined data as nested objects or arrays depending on the query
+  // Supabase returns joined data as nested objects
+  // If no join data is found, we provide a safe fallback object to prevent UI crashes
   const brandData = p.brands;
   const categoryData = p.categories;
 
@@ -23,12 +24,12 @@ const mapProduct = (p: any): Product => {
         slug: brandData.slug,
         image: brandData.image,
         description: brandData.description
-    } : { id: 'unknown', name: 'LesiKo Brand', slug: 'lesiko' },
+    } : { id: 'unknown', name: 'LesiKo', slug: 'lesiko' },
     category: categoryData ? {
         id: categoryData.slug,
-        name: categoryData.label || categoryData.name, 
+        name: categoryData.label, 
         slug: categoryData.slug
-    } : { id: 'unknown', name: 'Cosmetics', slug: 'cosmetics' },
+    } : { id: 'unknown', name: 'General', slug: 'general' },
     subCategory: p.sub_category,
     images: Array.isArray(p.images) ? p.images : [],
     videoPlaybackId: p.video_playback_id,

@@ -1,5 +1,5 @@
 
-import React, { useEffect, Suspense, ReactNode } from 'react';
+import React, { useEffect, Suspense, ReactNode, Component } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 
 // Layout & Components
@@ -48,18 +48,21 @@ interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-// Fix: Use React.Component explicitly and class fields to avoid type errors with this.state and this.props
-class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = {
-    hasError: false
-  };
+// Fix: explicitly import Component and use constructor to ensure props and state are correctly typed by the compiler
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = {
+      hasError: false
+    };
+  }
 
   static getDerivedStateFromError(_: Error): ErrorBoundaryState {
     return { hasError: true };
   }
 
   render() {
-    // Correctly accessing state and props from React.Component base class
+    // Correctly accessing state and props from Component base class
     if (this.state.hasError) {
       return (
         <div className="h-screen flex flex-col items-center justify-center p-4 text-center">
