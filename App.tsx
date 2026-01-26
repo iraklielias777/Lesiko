@@ -1,5 +1,4 @@
-
-import React, { useEffect, Suspense, Component, ReactNode } from 'react';
+import React, { useEffect, Suspense, ReactNode } from 'react';
 import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 
 // Layout & Components
@@ -40,17 +39,18 @@ const ScrollToTop = () => {
   return null;
 };
 
-// FIX: Explicitly define props and state interfaces for ErrorBoundary to ensure property recognition in TypeScript.
+// FIX: Explicitly define props and state interfaces for ErrorBoundary.
+// children is made optional to satisfy JSX type checks where children are passed as nest elements.
 interface ErrorBoundaryProps {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
 }
 
-// FIX: Extend Component with explicit generics to fix 'state' and 'props' property access errors.
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+// FIX: Use React.Component with explicit generics to ensure props and state are correctly typed and accessible.
+class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false };

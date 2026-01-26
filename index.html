@@ -7,7 +7,27 @@
     <meta name="description" content="LesiKo - Your destination for premium cosmetics and personalized skincare routines in Georgia. Discover top brands and science-backed beauty." />
     <title>LesiKo | Premium Skincare & Cosmetics</title>
     
-    <!-- Fonts: Inter, Montserrat, and Noto Sans Georgian -->
+    <!-- Process Shim: Prevents crashes in libraries expecting Node-like environment -->
+    <script>
+      window.process = { env: { NODE_ENV: 'production' } };
+    </script>
+
+    <!-- Global Error Catcher: Shows errors on screen if the app fails to mount -->
+    <script>
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        const root = document.getElementById('root');
+        if (root && !root.innerHTML.trim()) {
+          root.innerHTML = '<div style="padding: 20px; font-family: sans-serif; text-align: center;">' +
+            '<h2>Application Error</h2>' +
+            '<p style="color: #666;">' + msg + '</p>' +
+            '<button onclick="location.reload()" style="padding: 10px 20px; background: #AED136; border: none; border-radius: 5px; color: white; cursor: pointer;">Retry</button>' +
+            '</div>';
+        }
+        return false;
+      };
+    </script>
+
+    <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -20,7 +40,7 @@
           extend: {
             colors: {
               brand: {
-                green: '#AED136', // Primary Brand Color
+                green: '#AED136',
                 dark: '#1A1A1A',
                 gray: '#6B7280',
                 light: '#F9FAFB',
@@ -42,13 +62,6 @@
             container: {
               center: true,
               padding: '1.5rem',
-              screens: {
-                sm: '640px',
-                md: '768px',
-                lg: '1024px',
-                xl: '1280px',
-                '2xl': '1440px',
-              },
             },
             animation: {
               'fade-in': 'fadeIn 0.6s ease-out forwards',
@@ -60,76 +73,28 @@
               'bounce-x': 'bounceX 1s infinite',
             },
             keyframes: {
-              fadeIn: {
-                '0%': { opacity: '0' },
-                '100%': { opacity: '1' },
-              },
-              fadeInUp: {
-                '0%': { opacity: '0', transform: 'translateY(20px)' },
-                '100%': { opacity: '1', transform: 'translateY(0)' },
-              },
-              slideInRight: {
-                '0%': { transform: 'translateX(100%)' },
-                '100%': { transform: 'translateX(0)' },
-              },
-              slideInLeft: {
-                '0%': { transform: 'translateX(-100%)' },
-                '100%': { transform: 'translateX(0)' },
-              },
-              scaleIn: {
-                 '0%': { transform: 'scale(0.95)', opacity: '0' },
-                 '100%': { transform: 'scale(1)', opacity: '1' },
-              },
-              float: {
-                '0%, 100%': { transform: 'translateY(0)' },
-                '50%': { transform: 'translateY(-10px)' },
-              },
-              bounceX: {
-                '0%, 100%': { transform: 'translateX(0)' },
-                '50%': { transform: 'translateX(3px)' },
-              }
+              fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+              fadeInUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+              slideInRight: { '0%': { transform: 'translateX(100%)' }, '100%': { transform: 'translateX(0)' } },
+              slideInLeft: { '0%': { transform: 'translateX(-100%)' }, '100%': { transform: 'translateX(0)' } },
+              scaleIn: { '0%': { transform: 'scale(0.95)', opacity: '0' }, '100%': { transform: 'scale(1)', opacity: '1' } },
+              float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+              bounceX: { '0%, 100%': { transform: 'translateX(0)' }, '50%': { transform: 'translateX(3px)' } }
             }
           }
         }
       }
     </script>
     <style>
-      html {
-        scroll-behavior: smooth;
-      }
-      body {
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
-      }
-      /* Custom selection color */
-      ::selection {
-        background-color: #AED136;
-        color: white;
-      }
-      /* Custom scrollbar for a premium feel */
-      ::-webkit-scrollbar {
-        width: 6px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #d1d5db; 
-        border-radius: 10px;
-      }
-      ::-webkit-scrollbar-thumb:hover {
-        background: #9ca3af; 
-      }
-      
-      /* Hide scrollbar for Chrome, Safari and Opera */
-      .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-      }
-      /* Hide scrollbar for IE, Edge and Firefox */
-      .scrollbar-hide {
-          -ms-overflow-style: none;  /* IE and Edge */
-          scrollbar-width: none;  /* Firefox */
-      }
+      html { scroll-behavior: smooth; }
+      body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+      ::selection { background-color: #AED136; color: white; }
+      ::-webkit-scrollbar { width: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
   <script type="importmap">
 {
@@ -152,7 +117,10 @@
 }
 </script>
 </head>
-  <body class="font-sans text-brand-dark antialiased bg-white selection:bg-brand-green selection:text-white">
+  <body class="font-sans text-brand-dark antialiased bg-white">
     <div id="root"></div>
+    <!-- Note: In local dev, this is transpiled. In production build, the bundler 
+         should convert this to index.js or handle the tsx transpilation. -->
+    <script type="module" src="index.tsx"></script>
   </body>
 </html>
