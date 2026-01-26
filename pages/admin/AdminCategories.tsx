@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Edit2, Check, X, ChevronRight, Save, Info, Image as ImageIcon, UploadCloud } from 'lucide-react';
+import { Plus, Trash2, Edit2, Check, X, ChevronRight, Save, Info, Image as ImageIcon, UploadCloud, Link as LinkIcon, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAdminStore } from '../../store/admin-store';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useToastStore } from '../../store/toast-store';
 import { CategoryHierarchyItem } from '../../types';
+import { StorageService } from '../../services/storage-service';
 
 export const AdminCategories = () => {
   const { t } = useTranslation();
@@ -15,10 +16,13 @@ export const AdminCategories = () => {
   
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
   const [tempData, setTempData] = useState<CategoryHierarchyItem[]>([]);
-  const [newSubFilter, setNewSubFilter] = useState('');
+  const [newSubValues, setNewSubValues] = useState<Record<string, string>>({});
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingSlug, setUploadingSlug] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showUrlInput, setShowUrlInput] = useState<string | null>(null);
+  const [remoteUrl, setRemoteUrl] = useState('');
 
   useEffect(() => {
     fetchCategories();
@@ -29,8 +33,12 @@ export const AdminCategories = () => {
   }, [categories]);
 
   const handleSaveAll = async () => {
-      await updateCategories(tempData);
-      addToast(t('admin.savedSuccess'));
+      try {
+          await updateCategories(tempData);
+          addToast(t('admin.savedSuccess'));
+      } catch (err) {
+          addToast("Failed to save changes", "error");
+      }
   };
 
   const handleAddMainCategory = () => {
@@ -43,71 +51,63 @@ export const AdminCategories = () => {
       setEditingSlug(newSlug);
   };
 
-  const handleDeleteMainCategory = (slug: string) => {
-      if(window.confirm(t('admin.deleteCategoryConfirm'))) {
-          setTempData(tempData.filter(c => c.slug !== slug));
-      }
-  };
+  const handleAddSubCategory = (slug: string) => {
+      const subValue = newSubValues[slug]?.trim();
+      if (!subValue) return;
 
-  const handleAddSub = (catSlug: string) => {
-      if (!newSubFilter.trim()) return;
-      setTempData(tempData.map(c => {
-          if (c.slug === catSlug) {
-              return { ...c, subs: [...c.subs, newSubFilter] };
-          }
-          return c;
-      }));
-      setNewSubFilter('');
-  };
-
-  const handleDeleteSub = (catSlug: string, sub: string) => {
-      setTempData(tempData.map(c => {
-          if (c.slug === catSlug) {
-              return { ...c, subs: c.subs.filter(s => s !== sub) };
-          }
-          return c;
-      }));
-  };
-
-  // Only auto-update slug if it's a newly created category (starts with 'new-category-')
-  // This prevents breaking links for existing categories when renaming them.
-  const updateLabel = (slug: string, newLabel: string) => {
-      setTempData(tempData.map(c => {
+      setTempData(prev => prev.map(c => {
           if (c.slug === slug) {
-              const isTemp = c.slug.startsWith('new-category-');
-              const newSlug = isTemp ? newLabel.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-') : c.slug;
-              return { ...c, label: newLabel, slug: newSlug };
+              return { ...c, subs: [...(c.subs || []), subValue] };
           }
           return c;
       }));
+
+      setNewSubValues(prev => ({ ...prev, [slug]: '' }));
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file && uploadingSlug) {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-              setTempData(tempData.map(c => {
-                  if (c.slug === uploadingSlug) {
-                      return { ...c, image: reader.result as string };
-                  }
-                  return c;
-              }));
+          setIsUploading(true);
+          try {
+              const publicUrl = await StorageService.uploadFile(file, 'categories');
+              updateCategoryImage(uploadingSlug, publicUrl);
+              addToast("Category image saved");
+          } catch (e) {
+              addToast("Upload failed", "error");
+          } finally {
+              setIsUploading(false);
               setUploadingSlug(null);
-              // Reset file input
               if(fileInputRef.current) fileInputRef.current.value = '';
-          };
-          reader.readAsDataURL(file);
+          }
       }
   };
 
-  const removeImage = (slug: string) => {
-      setTempData(tempData.map(c => {
-          if (c.slug === slug) {
-              return { ...c, image: undefined };
-          }
-          return c;
-      }));
+  const handleUrlUpload = async (slug: string) => {
+      if (!remoteUrl) return;
+      setIsUploading(true);
+      try {
+          const publicUrl = await StorageService.uploadFromUrl(remoteUrl, 'categories');
+          updateCategoryImage(slug, publicUrl);
+          setShowUrlInput(null);
+          setRemoteUrl('');
+          addToast("Image fetched and saved");
+      } catch (e) {
+          addToast("Failed to fetch image", "error");
+      } finally {
+          setIsUploading(false);
+      }
+  };
+
+  const updateCategoryImage = (slug: string, url: string) => {
+      setTempData(tempData.map(c => c.slug === slug ? { ...c, image: url } : c));
+  };
+
+  const removeImage = async (slug: string, url?: string) => {
+      if (url?.includes('supabase.co')) {
+          await StorageService.deleteFile(url);
+      }
+      setTempData(tempData.map(c => c.slug === slug ? { ...c, image: undefined } : c));
   };
 
   return (
@@ -124,118 +124,102 @@ export const AdminCategories = () => {
         </div>
 
         <div className="grid gap-6">
-            {tempData.map((cat, idx) => (
-                <div key={idx} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row gap-6 group/card">
-                    {/* Category Image - Enhanced UI */}
-                    <div className="flex-shrink-0">
+            {tempData.map((cat) => (
+                <div key={cat.slug} className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col md:flex-row gap-6 group/card">
+                    <div className="flex-shrink-0 w-32">
                         <div className="w-32 h-32 rounded-lg bg-gray-50 border-2 border-dashed border-gray-200 overflow-hidden relative group hover:border-brand-green transition-colors">
                             {cat.image ? (
                                 <>
                                     <img src={cat.image} alt={cat.label} className="w-full h-full object-cover" />
                                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
-                                        <button 
-                                            onClick={() => { setUploadingSlug(cat.slug); fileInputRef.current?.click(); }}
-                                            className="text-white text-xs font-bold hover:underline"
-                                        >
-                                            {t('common.change')}
-                                        </button>
-                                        <button 
-                                            onClick={() => removeImage(cat.slug)}
-                                            className="text-red-400 text-xs font-bold hover:text-red-300"
-                                        >
-                                            {t('common.remove')}
-                                        </button>
+                                        <button onClick={() => { setUploadingSlug(cat.slug); fileInputRef.current?.click(); }} className="text-white text-xs font-bold hover:underline">Change</button>
+                                        <button onClick={() => removeImage(cat.slug, cat.image)} className="text-red-400 text-xs font-bold hover:text-red-300">Remove</button>
                                     </div>
                                 </>
                             ) : (
-                                <button 
-                                    onClick={() => { setUploadingSlug(cat.slug); fileInputRef.current?.click(); }}
-                                    className="w-full h-full flex flex-col items-center justify-center text-gray-400 hover:text-brand-green"
-                                >
-                                    <ImageIcon className="w-8 h-8 mb-1" />
-                                    <span className="text-xs font-medium">{t('admin.addImage')}</span>
-                                </button>
+                                <div className="w-full h-full flex flex-col items-center justify-center text-gray-400">
+                                    {isUploading && uploadingSlug === cat.slug ? (
+                                        <Loader2 className="w-8 h-8 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <button onClick={() => { setUploadingSlug(cat.slug); fileInputRef.current?.click(); }} className="hover:text-brand-green transition-colors"><UploadCloud className="w-8 h-8 mb-1" /></button>
+                                            <button onClick={() => setShowUrlInput(cat.slug)} className="hover:text-brand-green transition-colors"><LinkIcon className="w-5 h-5 mt-1" /></button>
+                                        </>
+                                    )}
+                                </div>
                             )}
                         </div>
-                        <p className="text-[10px] text-gray-400 text-center mt-2">{t('admin.recommendedSize')}</p>
+                        {showUrlInput === cat.slug && (
+                           <div className="mt-2 space-y-2 animate-fade-in">
+                              <input 
+                                 type="text" 
+                                 className="w-full p-1.5 text-[10px] border rounded" 
+                                 placeholder="Paste image URL" 
+                                 value={remoteUrl}
+                                 onChange={e => setRemoteUrl(e.target.value)}
+                              />
+                              <div className="flex gap-1">
+                                 <button onClick={() => handleUrlUpload(cat.slug)} className="bg-brand-green text-white text-[10px] px-2 py-1 rounded flex-1">Save</button>
+                                 <button onClick={() => setShowUrlInput(null)} className="bg-gray-200 text-gray-600 text-[10px] px-2 py-1 rounded flex-1">X</button>
+                              </div>
+                           </div>
+                        )}
                     </div>
 
                     <div className="flex-1">
                         <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-100">
                             {editingSlug === cat.slug ? (
                                 <div className="flex items-center gap-2 flex-1">
-                                    <Input 
-                                        autoFocus
-                                        value={cat.label} 
-                                        onChange={(e) => updateLabel(cat.slug, e.target.value)}
-                                        className="max-w-xs font-bold"
-                                    />
-                                    <button onClick={() => setEditingSlug(null)} className="p-2 text-green-600 hover:bg-green-50 rounded"><Check className="w-5 h-5"/></button>
+                                    <Input value={cat.label} onChange={(e) => setTempData(tempData.map(c => c.slug === cat.slug ? {...c, label: e.target.value} : c))} className="max-w-xs font-bold" />
+                                    <button onClick={() => setEditingSlug(null)} className="p-2 text-green-600"><Check className="w-5 h-5"/></button>
                                 </div>
                             ) : (
                                 <div className="flex items-center gap-3">
                                     <h3 className="text-xl font-bold text-gray-900">{cat.label}</h3>
-                                    {!cat.slug.startsWith('new-category-') && (
-                                        <span className="text-xs text-gray-400 font-mono bg-gray-50 px-2 py-1 rounded">/{cat.slug}</span>
-                                    )}
-                                    <button onClick={() => setEditingSlug(cat.slug)} className="text-gray-400 hover:text-brand-green p-1 hover:bg-gray-50 rounded transition-colors"><Edit2 className="w-4 h-4"/></button>
+                                    <button onClick={() => setEditingSlug(cat.slug)} className="text-gray-400 hover:text-brand-green"><Edit2 className="w-4 h-4"/></button>
                                 </div>
                             )}
-                            <button onClick={() => handleDeleteMainCategory(cat.slug)} className="text-gray-400 hover:text-red-600 p-2 hover:bg-red-50 rounded transition-colors"><Trash2 className="w-5 h-5"/></button>
+                            <button onClick={() => setTempData(tempData.filter(c => c.slug !== cat.slug))} className="text-gray-400 hover:text-red-600"><Trash2 className="w-5 h-5"/></button>
                         </div>
 
                         <div>
-                            <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-                                {t('admin.subFilters')}
-                                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">{cat.subs.length}</span>
-                            </h4>
                             <div className="flex flex-wrap gap-2 mb-4">
-                                {cat.subs.map((sub, sIdx) => (
-                                    <span key={sIdx} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-gray-700 text-sm border border-gray-200 group">
+                                {cat.subs.map((sub) => (
+                                    <span key={sub} className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-sm border">
                                         {sub}
-                                        <button onClick={() => handleDeleteSub(cat.slug, sub)} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3"/></button>
+                                        <button onClick={() => setTempData(tempData.map(c => c.slug === cat.slug ? {...c, subs: c.subs.filter(s => s !== sub)} : c))} className="text-gray-400 hover:text-red-500"><X className="w-3 h-3"/></button>
                                     </span>
                                 ))}
                             </div>
-                            <div className="flex gap-2 max-w-sm">
+                            
+                            <div className="flex gap-2 max-w-xs">
                                 <input 
                                     type="text" 
                                     placeholder={t('admin.addSubPlaceholder')}
-                                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-brand-green focus:ring-1 focus:ring-brand-green transition-all"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter') {
-                                            const val = (e.target as HTMLInputElement).value;
-                                            setNewSubFilter(val); 
-                                            handleAddSub(cat.slug);
-                                        }
-                                    }}
-                                    value={newSubFilter}
-                                    onChange={(e) => setNewSubFilter(e.target.value)}
+                                    className="flex-1 p-2 border border-gray-200 rounded text-xs outline-none focus:border-brand-green"
+                                    value={newSubValues[cat.slug] || ''}
+                                    onChange={e => setNewSubValues({ ...newSubValues, [cat.slug]: e.target.value })}
+                                    onKeyDown={e => e.key === 'Enter' && handleAddSubCategory(cat.slug)}
                                 />
-                                <Button size="sm" variant="secondary" onClick={() => handleAddSub(cat.slug)} disabled={!newSubFilter}>{t('admin.addBtn')}</Button>
+                                <button 
+                                    onClick={() => handleAddSubCategory(cat.slug)}
+                                    className="p-2 bg-gray-900 text-white rounded hover:bg-black transition-colors"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
             ))}
 
-            <button 
-                onClick={handleAddMainCategory}
-                className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center text-gray-500 hover:border-brand-green hover:text-brand-green hover:bg-brand-green/5 transition-all"
-            >
+            <button onClick={handleAddMainCategory} className="border-2 border-dashed border-gray-300 rounded-xl p-8 flex flex-col items-center justify-center text-gray-500 hover:border-brand-green hover:text-brand-green transition-all">
                 <Plus className="w-8 h-8 mb-2" />
-                <span className="font-bold">{t('admin.addNewCategory')}</span>
+                <span className="font-bold">Add New Main Category</span>
             </button>
         </div>
 
-        {/* Hidden File Input for Image Upload */}
-        <input 
-            type="file" 
-            ref={fileInputRef}
-            className="hidden"
-            accept="image/*"
-            onChange={handleImageUpload}
-        />
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImageUpload} />
     </div>
   );
 };

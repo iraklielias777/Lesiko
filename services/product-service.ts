@@ -3,13 +3,9 @@ import { Product, Brand, Category } from '../types';
 import { supabase } from '../lib/supabase';
 
 const mapProduct = (p: any): Product => {
-  const extractJoined = (val: any) => {
-    if (!val) return null;
-    return Array.isArray(val) ? val[0] : val;
-  };
-  
-  const brandData = extractJoined(p.brands);
-  const categoryData = extractJoined(p.categories);
+  // Supabase returns joined data as nested objects or arrays depending on the query
+  const brandData = p.brands;
+  const categoryData = p.categories;
 
   return {
     id: p.id,
@@ -29,7 +25,7 @@ const mapProduct = (p: any): Product => {
         description: brandData.description
     } : { id: 'unknown', name: 'LesiKo Brand', slug: 'lesiko' },
     category: categoryData ? {
-        id: categoryData.id,
+        id: categoryData.slug,
         name: categoryData.label || categoryData.name, 
         slug: categoryData.slug
     } : { id: 'unknown', name: 'Cosmetics', slug: 'cosmetics' },
@@ -116,7 +112,7 @@ export const ProductService = {
       compare_at_price: product.compareAtPrice,
       inventory_quantity: product.inventoryQuantity,
       brand_id: product.brand.id,
-      category_id: product.category.id,
+      category_id: product.category.id, 
       sub_category: product.subCategory,
       images: product.images,
       is_new: product.isNew,
@@ -136,9 +132,14 @@ export const ProductService = {
         name: product.name,
         name_ka: product.nameKa,
         price: product.price,
+        compare_at_price: product.compareAtPrice,
         inventory_quantity: product.inventoryQuantity,
         description: product.description,
-        description_ka: product.descriptionKa
+        description_ka: product.descriptionKa,
+        category_id: product.category.id,
+        brand_id: product.brand.id,
+        images: product.images,
+        is_trending: product.isTrending
       })
       .eq('id', product.id);
     if (error) throw error;
