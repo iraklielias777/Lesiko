@@ -1,123 +1,163 @@
-
 import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useSettingsStore } from '../../store/settings-store';
+import { absoluteUrl, applyTitleTemplate, pickLang, truncate } from '../../lib/seo';
+
+/**
+ * Writes the document head on every route change.
+ *
+ * Callers pass an already-resolved title and description (see lib/use-seo.ts)
+ * rather than raw strings, so what lands here is what the admin typed. The
+ * component only decides how to render it into tags.
+ */
 
 interface SEOProps {
   title?: string;
   description?: string;
-  keywords?: string[];
+  keywords?: string[] | string;
   image?: string;
   type?: 'website' | 'product' | 'article';
-  structuredData?: object;
+  structuredData?: object | object[];
   noindex?: boolean;
+  /** Set when the URL carries filters that produce a duplicate of another page. */
+  canonicalPath?: string;
 }
 
-export const SEO: React.FC<SEOProps> = ({ 
-  title, 
-  description, 
-  keywords = [], 
+/** Removes anything a previous route added, so tags never leak between pages. */
+const MANAGED = 'data-seo-managed';
+
+export const SEO: React.FC<SEOProps> = ({
+  title,
+  description,
+  keywords,
   image,
   type = 'website',
   structuredData,
-  noindex = false
+  noindex = false,
+  canonicalPath
 }) => {
   const location = useLocation();
   const { i18n } = useTranslation();
   const isKa = i18n.language === 'ka';
 
-  // Base Keywords
-  const defaultKeywords = isKa 
-    ? ['კოსმეტიკა', 'თავის მოვლა', 'მაკიაჟი', 'ონლაინ მაღაზია', 'სილამაზე', 'LesiKo']
-    : ['cosmetics', 'skincare', 'makeup', 'beauty', 'online store', 'LesiKo'];
+  const settings = useSettingsStore(s => s.settings);
+  const seo = useSettingsStore(s => s.seoPages);
+  const siteName = settings.storeName || 'LesiKo';
 
-  const allKeywords = [...new Set([...defaultKeywords, ...keywords])].filter(Boolean).join(', ');
-  
-  // Defaults
-  const siteName = 'LesiKo';
-  const defaultTitle = isKa ? 'LesiKo | პრემიუმ კოსმეტიკა და თავის მოვლა' : 'LesiKo | Premium Cosmetics & Skincare';
-  const defaultDesc = isKa 
-    ? 'აღმოაჩინეთ საუკეთესო კოსმეტიკური საშუალებები LesiKo-ში. უფასო მიწოდება მთელ საქართველოში.'
-    : 'Discover premium skincare and cosmetics at LesiKo. Science-backed beauty delivered to your door.';
+  const defaultTitle = applyTitleTemplate(
+    seo.titleTemplate,
+    pickLang(seo.defaults.title, seo.defaults.titleKa, isKa),
+    siteName
+  );
+  const defaultDesc = pickLang(seo.defaults.description, seo.defaults.descriptionKa, isKa);
+  const defaultKeywords = pickLang(seo.defaults.keywords, seo.defaults.keywordsKa, isKa);
 
-  // Avoid double branding if title already contains site name or separator
-  const finalTitle = title 
-    ? (title.includes('| LesiKo') ? title : `${title} | ${siteName}`) 
-    : defaultTitle;
-    
-  const finalDesc = description || defaultDesc;
-  const currentUrl = window.location.href;
+  const finalTitle = title?.trim() || defaultTitle;
+  const finalDesc = truncate(description?.trim() || defaultDesc);
+
+  const extra = Array.isArray(keywords) ? keywords.join(', ') : (keywords || '');
+  const allKeywords = [...new Set(
+    `${defaultKeywords}, ${extra}`.split(',').map(k => k.trim()).filter(Boolean)
+  )].join(', ');
+
+  // Canonicals are built from the configured origin, never from the browser's:
+  // a preview deployment pointing canonicals at itself competes with the real
+  // site for the same keywords.
+  const canonical = absoluteUrl(settings.siteUrl, canonicalPath ?? location.pathname);
+  const shareImage = image || seo.defaults.ogImage || settings.ogImage || '';
+  const verification = seo.verification || {};
+
+  const schemaJson = structuredData ? JSON.stringify(structuredData) : '';
 
   useEffect(() => {
-    // 1. Update Title
     document.title = finalTitle;
-    
-    // 2. Update Html Lang
     document.documentElement.lang = i18n.language;
 
-    // Helper to update/create meta tags
-    const updateMeta = (name: string, content: string, attribute = 'name') => {
-      let element = document.querySelector(`meta[${attribute}="${name}"]`);
-      if (!element) {
-        element = document.createElement('meta');
-        element.setAttribute(attribute, name);
-        document.head.appendChild(element);
+    const upsert = (attr: 'name' | 'property', key: string, content: string) => {
+      let el = document.head.querySelector(`meta[${attr}="${key}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, key);
+        el.setAttribute(MANAGED, '');
+        document.head.appendChild(el);
       }
-      element.setAttribute('content', content);
+      el.setAttribute('content', content);
     };
 
-    // 3. Standard Meta
-    updateMeta('description', finalDesc);
-    updateMeta('keywords', allKeywords);
-    
-    // Robots (Index/NoIndex)
-    const robotsContent = noindex ? 'noindex, nofollow' : 'index, follow';
-    updateMeta('robots', robotsContent);
+    const remove = (attr: 'name' | 'property', key: string) => {
+      document.head.querySelector(`meta[${attr}="${key}"]`)?.remove();
+    };
 
-    // 4. Open Graph / Facebook
-    updateMeta('og:type', type, 'property');
-    updateMeta('og:title', finalTitle, 'property');
-    updateMeta('og:description', finalDesc, 'property');
-    updateMeta('og:url', currentUrl, 'property');
-    updateMeta('og:site_name', siteName, 'property');
-    if (image) updateMeta('og:image', image, 'property');
+    upsert('name', 'description', finalDesc);
+    upsert('name', 'keywords', allKeywords);
+    upsert('name', 'robots', noindex ? 'noindex, nofollow' : 'index, follow');
 
-    // 5. Twitter
-    updateMeta('twitter:card', 'summary_large_image');
-    updateMeta('twitter:title', finalTitle);
-    updateMeta('twitter:description', finalDesc);
-    if (image) updateMeta('twitter:image', image);
+    upsert('property', 'og:type', type);
+    upsert('property', 'og:title', finalTitle);
+    upsert('property', 'og:description', finalDesc);
+    upsert('property', 'og:url', canonical);
+    upsert('property', 'og:site_name', siteName);
+    upsert('property', 'og:locale', isKa ? 'ka_GE' : 'en_US');
+    upsert('property', 'og:locale:alternate', isKa ? 'en_US' : 'ka_GE');
 
-    // 6. Canonical Link
-    let linkCanonical = document.querySelector('link[rel="canonical"]');
-    if (!linkCanonical) {
-        linkCanonical = document.createElement('link');
-        linkCanonical.setAttribute('rel', 'canonical');
-        document.head.appendChild(linkCanonical);
+    upsert('name', 'twitter:card', shareImage ? 'summary_large_image' : 'summary');
+    upsert('name', 'twitter:title', finalTitle);
+    upsert('name', 'twitter:description', finalDesc);
+
+    if (shareImage) {
+      upsert('property', 'og:image', shareImage);
+      upsert('property', 'og:image:alt', finalTitle);
+      upsert('name', 'twitter:image', shareImage);
+    } else {
+      // A stale image from the previous route is worse than none at all.
+      remove('property', 'og:image');
+      remove('property', 'og:image:alt');
+      remove('name', 'twitter:image');
     }
-    linkCanonical.setAttribute('href', currentUrl);
 
-    // 7. JSON-LD Structured Data
+    if (verification.google) upsert('name', 'google-site-verification', verification.google);
+    if (verification.bing) upsert('name', 'msvalidate.01', verification.bing);
+    if (verification.facebookDomain) upsert('name', 'facebook-domain-verification', verification.facebookDomain);
+
+    let link = document.head.querySelector('link[rel="canonical"]');
+    if (!link) {
+      link = document.createElement('link');
+      link.setAttribute('rel', 'canonical');
+      link.setAttribute(MANAGED, '');
+      document.head.appendChild(link);
+    }
+    link.setAttribute('href', canonical);
+
     const scriptId = 'seo-structured-data';
-    let script = document.getElementById(scriptId) as HTMLScriptElement;
-    
-    if (structuredData) {
-        if (!script) {
-            script = document.createElement('script');
-            script.id = scriptId;
-            script.type = 'application/ld+json';
-            document.head.appendChild(script);
-        }
-        script.textContent = JSON.stringify(structuredData);
-    } else if (script) {
-        script.remove();
+    const existing = document.getElementById(scriptId);
+    if (schemaJson) {
+      const script = (existing as HTMLScriptElement) || document.createElement('script');
+      if (!existing) {
+        script.id = scriptId;
+        script.type = 'application/ld+json';
+        document.head.appendChild(script);
+      }
+      script.textContent = schemaJson;
+    } else if (existing) {
+      existing.remove();
     }
-
-    return () => {
-        // Cleanup if needed, though react re-renders handle updates
-    };
-
-  }, [finalTitle, finalDesc, allKeywords, image, type, currentUrl, siteName, structuredData, noindex, i18n.language]);
+  }, [
+    finalTitle,
+    finalDesc,
+    allKeywords,
+    shareImage,
+    type,
+    canonical,
+    siteName,
+    schemaJson,
+    noindex,
+    i18n.language,
+    isKa,
+    verification.google,
+    verification.bing,
+    verification.facebookDomain
+  ]);
 
   return null;
 };

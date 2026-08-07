@@ -8,6 +8,8 @@ import { Button } from '../ui/Button';
 import { useCartStore } from '../../store/cart-store';
 import { useUIStore } from '../../store/ui-store';
 import { useWishlistStore } from '../../store/wishlist-store';
+import { imageSrcSet, imageUrl } from '../../lib/image-url';
+import { useFormatPrice } from '../../lib/format';
 
 interface ProductCardProps {
   product: Product;
@@ -18,6 +20,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const addItem = useCartStore((state) => state.addItem);
   const openQuickView = useUIStore((state) => state.openQuickView);
   const { isInWishlist, toggleItem: toggleWishlist } = useWishlistStore();
+  const fmt = useFormatPrice();
   
   const isFavorited = isInWishlist(product.id);
   const discountPercentage = product.compareAtPrice 
@@ -27,16 +30,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   // Localization logic
   const displayName = i18n.language === 'ka' ? (product.nameKa || product.name) : product.name;
 
+  const primaryImage = product.images.find(img => img.isPrimary) || product.images[0];
+  const primaryImageUrl = primaryImage?.url || 'https://picsum.photos/400/600';
+
   return (
     <div className="group relative flex flex-col h-full rounded-xl bg-white p-2">
       {/* Image Container */}
       <div className="relative aspect-[4/5] overflow-hidden rounded-lg bg-gray-50 mb-4 isolate">
         <Link to={`/product/${product.slug}`} className="block w-full h-full">
           <img
-            src={product.images[0]?.url || 'https://picsum.photos/400/600'}
-            alt={product.images[0]?.altText || product.name}
+            src={imageUrl(primaryImageUrl, { width: 600 })}
+            srcSet={imageSrcSet(primaryImageUrl, [300, 450, 600, 900])}
+            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+            alt={primaryImage?.altText || product.name}
             className="w-full h-full object-cover transition-transform duration-700 ease-premium group-hover:scale-105"
             loading="lazy"
+            decoding="async"
           />
           {/* Subtle overlay on hover */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-500" />
@@ -130,30 +139,33 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           </div>
           <div className="text-right flex flex-col items-end">
              <span className="font-bold text-gray-900 text-sm">
-                ${product.price.toFixed(2)}
+                {fmt(product.price)}
              </span>
              {product.compareAtPrice && (
                <span className="text-xs text-gray-400 line-through">
-                 ${product.compareAtPrice.toFixed(2)}
+                 {fmt(product.compareAtPrice)}
                </span>
              )}
           </div>
         </div>
 
-        {/* Rating */}
-        <div className="flex items-center mt-2">
-          {[...Array(5)].map((_, i) => (
-            <svg
-              key={i}
-              className={`w-3 h-3 ${i < Math.floor(product.averageRating) ? 'text-brand-green' : 'text-gray-200'}`}
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
-              <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
-            </svg>
-          ))}
-          <span className="text-[10px] text-gray-400 ml-1.5 font-medium">({product.reviewCount})</span>
-        </div>
+        {/* Rating — hidden until a product actually has reviews, so an empty
+            catalogue does not advertise stars nobody left. */}
+        {product.reviewCount > 0 && (
+          <div className="flex items-center mt-2">
+            {[...Array(5)].map((_, i) => (
+              <svg
+                key={i}
+                className={`w-3 h-3 ${i < Math.floor(product.averageRating) ? 'text-brand-green' : 'text-gray-200'}`}
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z" />
+              </svg>
+            ))}
+            <span className="text-[10px] text-gray-400 ml-1.5 font-medium">({product.reviewCount})</span>
+          </div>
+        )}
       </div>
     </div>
   );

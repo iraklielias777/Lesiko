@@ -7,6 +7,7 @@ import { SearchService, QuickSearchResults } from '../../services/search-service
 import { ProductService } from '../../services/product-service'; 
 import { Product } from '../../types';
 import { Button } from '../ui/Button';
+import { useFormatPrice } from '../../lib/format';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -14,11 +15,12 @@ interface SearchOverlayProps {
 }
 
 type SearchItem = 
-  | { type: 'category'; data: { name: string; slug: string; type: 'category' | 'subcategory' } }
+  | { type: 'category'; data: QuickSearchResults['categories'][number] }
   | { type: 'brand'; data: { name: string; slug: string } }
   | { type: 'product'; data: Product };
 
 export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose }) => {
+  const fmt = useFormatPrice();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -153,9 +155,9 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
       addToHistory(query || item.data.name);
 
       if (item.type === 'category') {
-          const url = item.data.type === 'category' 
-              ? `/category/${item.data.slug}` 
-              : `/category/${item.data.slug}?subCategory=${encodeURIComponent(item.data.name)}`;
+          const url = item.data.type === 'category'
+              ? `/category/${item.data.slug}`
+              : `/category/${item.data.slug}?subCategory=${encodeURIComponent(item.data.subSlug || '')}`;
           navigate(url);
       } else if (item.type === 'brand') {
           navigate(`/products?brands=${item.data.slug}`);
@@ -289,7 +291,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-start">
                                                 <h4 className="font-medium text-gray-900 truncate group-hover:text-brand-green transition-colors">{p.name}</h4>
-                                                <span className="text-xs font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded">${p.price}</span>
+                                                <span className="text-xs font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded">{fmt(p.price)}</span>
                                             </div>
                                             <p className="text-xs text-gray-500 truncate">{p.brand.name}</p>
                                         </div>
@@ -427,9 +429,9 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                                             {highlightText(product.name, query)}
                                                         </h4>
                                                         <div className="text-right flex-shrink-0">
-                                                            <span className="text-sm font-bold text-gray-900">${product.price}</span>
+                                                            <span className="text-sm font-bold text-gray-900">{fmt(product.price)}</span>
                                                             {product.compareAtPrice && (
-                                                                <span className="text-xs text-gray-400 line-through block">${product.compareAtPrice}</span>
+                                                                <span className="text-xs text-gray-400 line-through block">{fmt(product.compareAtPrice)}</span>
                                                             )}
                                                         </div>
                                                     </div>
@@ -478,9 +480,9 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                         {activeItem.data.name}
                                     </h3>
                                     <div className="flex items-baseline gap-2 mb-4">
-                                        <span className="text-xl font-bold text-gray-900">${activeItem.data.price}</span>
+                                        <span className="text-xl font-bold text-gray-900">{fmt(activeItem.data.price)}</span>
                                         {activeItem.data.compareAtPrice && (
-                                            <span className="text-sm text-gray-400 line-through">${activeItem.data.compareAtPrice}</span>
+                                            <span className="text-sm text-gray-400 line-through">{fmt(activeItem.data.compareAtPrice)}</span>
                                         )}
                                     </div>
                                     <p className="text-sm text-gray-500 line-clamp-3 leading-relaxed">

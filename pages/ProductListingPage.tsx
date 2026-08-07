@@ -9,22 +9,34 @@ import { ProductFilters } from '../components/product/ProductFilters';
 import { Button } from '../components/ui/Button';
 import { Drawer } from '../components/ui/Drawer';
 import { SEO } from '../components/seo/SEO';
+import { useCategories } from '../lib/use-categories';
+import { categoryLabel, findSub, subLabelBySlug } from '../lib/taxonomy';
+import { BrandService } from '../services/brand-service';
+import { Brand } from '../types';
+import { useEntitySeo, usePageSeo, useSiteUrl } from '../lib/use-seo';
+import { useSettingsStore } from '../store/settings-store';
 
 type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating';
 
 const ITEMS_PER_PAGE = 12;
 
 export const ProductListingPage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const searchQuery = searchParams.get('q');
   const subCategoryParam = searchParams.get('subCategory');
   const skinTypeParam = searchParams.get('skinType');
-  const brandsParam = searchParams.get('brands');
-  
+
   const isSalePage = location.pathname === '/sale';
+  // /brand/:slug and /products?brands=:slug are the same view; the dedicated
+  // path exists so a brand has one address worth indexing and linking to.
+  const isBrandPage = location.pathname.startsWith('/brand/');
+  const brandsParam = isBrandPage ? slug || null : searchParams.get('brands');
+
+  const [brand, setBrand] = useState<Brand | undefined>();
+  const storeName = useSettingsStore(s => s.settings.storeName);
   
   const [results, setResults] = useState<SearchResults>({
     products: [],
@@ -34,6 +46,9 @@ export const ProductListingPage = () => {
   const [loading, setLoading] = useState(true);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  // Page headings resolve their display text from the category rows, so a
+  // category added in the admin titles correctly in both languages.
+  const categories = useCategories();
   
   // Advanced Filter State
   const [filters, setFilters] = useState<SearchFilters>({
@@ -48,7 +63,7 @@ export const ProductListingPage = () => {
     const newFilters: SearchFilters = { ...filters };
     
     // Main Category from slug
-    if (slug && slug !== 'shop-all' && !isSalePage) {
+    if (slug && slug !== 'shop-all' && !isSalePage && !isBrandPage) {
       newFilters.categories = [slug];
     } else {
        newFilters.categories = [];
@@ -88,7 +103,16 @@ export const ProductListingPage = () => {
 
     setFilters(prev => ({ ...prev, ...newFilters }));
     setCurrentPage(1); // Reset page on URL change
-  }, [slug, searchQuery, subCategoryParam, skinTypeParam, brandsParam, isSalePage]);
+  }, [slug, searchQuery, subCategoryParam, skinTypeParam, brandsParam, isSalePage, isBrandPage]);
+
+  // The brand row carries its own SEO copy and description, so the page needs
+  // more than the slug from the URL.
+  useEffect(() => {
+    if (!isBrandPage || !slug) { setBrand(undefined); return; }
+    let active = true;
+    BrandService.getBrandBySlug(slug).then(found => { if (active) setBrand(found); });
+    return () => { active = false; };
+  }, [isBrandPage, slug]);
 
   // Fetch Data when filters change
   useEffect(() => {
@@ -138,10 +162,16 @@ export const ProductListingPage = () => {
   const getPageTitle = () => {
       if (searchQuery) return t('common.searchResults', { query: searchQuery });
       if (isSalePage) return t('common.sale');
-      if (subCategoryParam) return t(`subCategories.${subCategoryParam}`, subCategoryParam);
+      if (isBrandPage) return brand?.name || (slug || '').split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      if (subCategoryParam) return subLabelBySlug(categories, subCategoryParam, i18n.language, slug);
       if (skinTypeParam) return `${t(`skinTypes.${skinTypeParam.toLowerCase()}`, skinTypeParam)} ${t('common.skin')}`;
       if (brandsParam) return brandsParam.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      if (slug) return t(`categories.${slug}`, slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' '));
+      if (slug) {
+        const category = categories.find(c => c.slug === slug);
+        return category
+          ? categoryLabel(category, i18n.language)
+          : slug.charAt(0).toUpperCase() + slug.slice(1).replace(/-/g, ' ');
+      }
       return t('common.shopAll');
   };
 
@@ -151,54 +181,103 @@ export const ProductListingPage = () => {
   const totalPages = Math.ceil(results.products.length / ITEMS_PER_PAGE);
   const paginatedProducts = results.products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  // Structured Data: Breadcrumbs
+  // Whichever row backs this view owns its SEO copy. A filtered listing with no
+  // row of its own falls through to the shop-all page entry.
+  const activeCategory = !isBrandPage && slug ? categories.find(c => c.slug === slug) : undefined;
+  const activeSub = subCategoryParam ? findSub(categories, subCategoryParam, slug) : undefined;
+  const seoEntity = activeSub || (isBrandPage ? brand : activeCategory);
+
+  const pageKey = isSalePage ? 'sale' : isBrandPage ? 'brands' : 'products';
+  const pageSeo = usePageSeo(pageKey, { title, description: `${title}.` });
+  const entitySeo = useEntitySeo(seoEntity || {}, {
+    title,
+    description: (isBrandPage ? brand?.description : '') || `Browse ${title} at ${storeName}.`,
+    keywords: [
+      ...(filters.categories || []),
+      ...(filters.subCategories || []),
+      ...(filters.brands || []),
+      ...(filters.skinTypes || [])
+    ].join(', '),
+    image: isBrandPage ? brand?.image : activeCategory?.image
+  });
+  const resolved = seoEntity ? entitySeo : pageSeo;
+
+  const url = useSiteUrl();
+
+  // Filters produce many URLs for one set of products, so everything below the
+  // canonical view points back at it rather than competing with it.
+  const canonicalPath = isSalePage
+    ? '/sale'
+    : isBrandPage
+      ? `/brand/${slug}`
+      : subCategoryParam && slug
+        ? `/category/${slug}?subCategory=${subCategoryParam}`
+        : slug
+          ? `/category/${slug}`
+          : '/products';
+
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
-      {
-        "@type": "ListItem",
-        "position": 1,
-        "name": t('common.home'),
-        "item": window.location.origin
-      },
-      {
-        "@type": "ListItem",
-        "position": 2,
-        "name": t('common.shop'),
-        "item": `${window.location.origin}/#/products`
-      },
-      ...(slug ? [{
+      { "@type": "ListItem", "position": 1, "name": t('common.home'), "item": url('/') },
+      { "@type": "ListItem", "position": 2, "name": t('common.shop'), "item": url('/products') },
+      ...(activeCategory ? [{
         "@type": "ListItem",
         "position": 3,
+        "name": categoryLabel(activeCategory, i18n.language),
+        "item": url(`/category/${activeCategory.slug}`)
+      }] : []),
+      ...(activeSub || isBrandPage || isSalePage ? [{
+        "@type": "ListItem",
+        "position": activeCategory ? 4 : 3,
         "name": title,
-        "item": window.location.href
+        "item": url(canonicalPath)
       }] : [])
     ]
   };
 
-  // Generate extended keywords based on active filters
-  const seoKeywords = [
-      ...(filters.categories || []),
-      ...(filters.subCategories || []),
-      ...(filters.brands || []),
-      ...(filters.skinTypes || []),
-      'cosmetics', 'skincare', 'georgia', 'beauty shop'
-  ];
+  // Tells search engines what is actually on the page, which is what earns the
+  // product carousels in results rather than a plain blue link.
+  const itemListSchema = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    "name": title,
+    "numberOfItems": results.total,
+    "itemListElement": paginatedProducts.map((product, index) => ({
+      "@type": "ListItem",
+      "position": (currentPage - 1) * ITEMS_PER_PAGE + index + 1,
+      "url": url(`/product/${product.slug}`),
+      "name": (i18n.language === 'ka' && product.nameKa) || product.name
+    }))
+  };
 
   return (
     <div className="bg-white min-h-screen pb-20">
       <SEO 
-        title={title} 
-        description={`Browse our collection of ${title}. Premium quality cosmetics and skincare available in Georgia.`}
-        keywords={seoKeywords}
-        structuredData={breadcrumbSchema}
+        title={resolved.title}
+        description={resolved.description}
+        keywords={resolved.keywords}
+        image={resolved.image}
+        canonicalPath={canonicalPath}
+        noindex={resolved.noindex}
+        structuredData={[breadcrumbSchema, itemListSchema]}
       />
 
       {/* Header */}
       <div className="bg-[#FAFAF9] border-b border-gray-100">
         <div className="container mx-auto px-4 py-16 text-center animate-fade-in">
+          {isBrandPage && brand?.image && (
+            <img
+              src={brand.image}
+              alt={brand.name}
+              className="w-20 h-20 rounded-full object-cover mx-auto mb-5 border border-gray-200"
+            />
+          )}
           <h1 className="font-heading text-4xl md:text-5xl font-bold text-gray-900 mb-4 tracking-tight capitalize">{title}</h1>
+          {isBrandPage && brand?.description && (
+            <p className="text-gray-500 max-w-xl mx-auto mb-5 leading-relaxed">{brand.description}</p>
+          )}
           <div className="text-xs md:text-sm text-gray-500 font-bold tracking-widest uppercase">
             {t('common.home')} <span className="mx-2 text-gray-300">/</span> {t('common.shop')} <span className="mx-2 text-gray-300">/</span> <span className="text-brand-dark capitalize">{title}</span>
           </div>

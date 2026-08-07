@@ -9,17 +9,13 @@ import { ProductService } from '../services/product-service';
 import { BrandService } from '../services/brand-service';
 import { CategoryService } from '../services/category-service';
 import { ContentService } from '../services/content-service';
-import { Product, Brand, CategoryHierarchyItem, PromoContent, SkinTypeContent } from '../types';
+import { FooterContent, Product, Brand, CategoryHierarchyItem, HeroContent, PromoContent, SkinTypeContent, SocialContent } from '../types';
 import { RecentlyViewed } from '../components/product/RecentlyViewed';
 import { SEO } from '../components/seo/SEO';
-
-const INSTAGRAM_POSTS = [
-    'https://images.unsplash.com/photo-1516975080664-ed2fc6a32937?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1512496015851-a90fb38ba796?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&q=80&w=400',
-    'https://images.unsplash.com/photo-1596462502278-27bfdd403348?auto=format&fit=crop&q=80&w=400',
-];
+import { categoryLabel, subLabel } from '../lib/taxonomy';
+import { imageSrcSet, imageUrl } from '../lib/image-url';
+import { useSettingsStore } from '../store/settings-store';
+import { usePageSeo, useSiteUrl } from '../lib/use-seo';
 
 const SKIN_TYPE_ICONS: Record<string, any> = {
     normal: Activity,
@@ -37,6 +33,19 @@ export const HomePage = () => {
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [promoContent, setPromoContent] = useState<PromoContent | null>(null);
   const [skinTypeContent, setSkinTypeContent] = useState<SkinTypeContent>([]);
+  const [hero, setHero] = useState<HeroContent | null>(null);
+  const [social, setSocial] = useState<SocialContent | null>(null);
+  const [footer, setFooter] = useState<FooterContent | null>(null);
+  const settings = useSettingsStore(s => s.settings);
+  const storeName = settings.storeName;
+  const seo = usePageSeo('home');
+  const url = useSiteUrl();
+
+  // Confirms to search engines that these profiles are the same entity as the
+  // store, which is how the brand panel in results gets populated.
+  const socialLinks = [footer?.instagramUrl, footer?.facebookUrl, footer?.twitterUrl, social?.profileUrl]
+    .map(link => (link || '').trim())
+    .filter(Boolean);
 
   useEffect(() => {
     ProductService.getAllProducts().then(products => {
@@ -59,6 +68,9 @@ export const HomePage = () => {
 
     ContentService.getPromoContent().then(setPromoContent);
     ContentService.getSkinTypeContent().then(setSkinTypeContent);
+    ContentService.getHeroContent().then(setHero);
+    ContentService.getSocialContent().then(setSocial);
+    ContentService.getFooterContent().then(setFooter);
   }, []);
 
   const toggleCategory = (slug: string) => {
@@ -78,15 +90,55 @@ export const HomePage = () => {
 
   const promoText = getLocalizedPromo();
 
-  // Omit title to use default tagline
+  const pick = (en: string, ka?: string) => (isKa && ka ? ka : en);
+
+  // Until the CMS row arrives the i18n strings stand in, so the hero never
+  // renders as an empty block on a cold load.
+  const heroText = {
+    eyebrow: hero ? pick(hero.eyebrow, hero.eyebrowKa) : t('home.newCollection'),
+    title: hero ? pick(hero.title, hero.titleKa) : t('home.heroTitle'),
+    subtitle: hero ? pick(hero.subtitle, hero.subtitleKa) : t('home.heroSubtitle'),
+    primaryLabel: hero ? pick(hero.primaryLabel, hero.primaryLabelKa) : t('home.shopCollection'),
+    secondaryLabel: hero ? pick(hero.secondaryLabel, hero.secondaryLabelKa) : t('home.takeQuiz')
+  };
+  const heroImage = hero?.image || '';
+
   const structuredData = {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "Organization",
-        "name": "LesiKo Cosmetics",
-        "url": window.location.origin,
-        "logo": "https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?auto=format&fit=crop&q=80&w=200"
+        "@id": `${url('/')}#organization`,
+        "name": storeName,
+        "url": url('/'),
+        // Was a stock photo of a random bottle. Google renders this next to the
+        // brand name, so it has to be the store's own image.
+        ...(settings.ogImage ? { "logo": settings.ogImage } : {}),
+        ...(settings.supportEmail ? {
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "contactType": "customer support",
+            "email": settings.supportEmail
+          }
+        } : {}),
+        ...(socialLinks.length ? { "sameAs": socialLinks } : {})
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${url('/')}#website`,
+        "name": storeName,
+        "url": url('/'),
+        "inLanguage": i18n.language === 'ka' ? 'ka-GE' : 'en-US',
+        "publisher": { "@id": `${url('/')}#organization` },
+        // Lets Google offer a search box for the site directly in results.
+        "potentialAction": {
+          "@type": "SearchAction",
+          "target": {
+            "@type": "EntryPoint",
+            "urlTemplate": `${url('/products')}?q={search_term_string}`
+          },
+          "query-input": "required name=search_term_string"
+        }
       }
     ]
   };
@@ -94,37 +146,65 @@ export const HomePage = () => {
   return (
     <div className="flex flex-col min-h-screen bg-white">
       <SEO 
-        keywords={['serum', 'cream', 'skincare georgia', 'შრატი', 'კრემი']}
+        title={seo.title}
+        description={seo.description}
+        keywords={seo.keywords}
+        image={seo.image}
+        canonicalPath="/"
+        noindex={seo.noindex}
         structuredData={structuredData}
       />
 
       {/* Hero Section */}
       <section className="relative h-[85vh] md:h-[90vh] min-h-[450px] md:min-h-[600px] flex flex-col md:flex-row overflow-hidden">
         <div className="absolute inset-0 md:hidden z-0">
-            <img src="https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?auto=format&fit=crop&q=80&w=800" alt="Beauty" className="w-full h-full object-cover" />
+            {heroImage && (
+              <img
+                src={imageUrl(heroImage, { width: 800 })}
+                srcSet={imageSrcSet(heroImage, [600, 800, 1200])}
+                sizes="100vw"
+                alt={heroText.title}
+                className="w-full h-full object-cover"
+                fetchPriority="high"
+                decoding="async"
+              />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent"></div>
         </div>
         <div className="w-full md:w-1/2 flex items-end md:items-center justify-center p-6 md:p-16 z-10 relative h-full">
           <div className="max-w-xl relative w-full mb-16 md:mb-0">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 md:bg-white border border-white/20 md:border-gray-100 shadow-sm text-white md:text-brand-dark text-[11px] font-bold uppercase tracking-widest mb-6 md:mb-8 backdrop-blur-md md:backdrop-blur-none animate-fade-in-up">
-              <Sparkles className="w-3.5 h-3.5 text-brand-green fill-brand-green" /> {t('home.newCollection')}
+              <Sparkles className="w-3.5 h-3.5 text-brand-green fill-brand-green" /> {heroText.eyebrow}
             </div>
             <h1 className="font-heading text-5xl sm:text-6xl md:text-8xl font-bold mb-4 md:mb-6 leading-[0.95] text-white md:text-brand-dark tracking-tighter animate-fade-in-up">
-              {t('home.heroTitle')}
+              {heroText.title}
             </h1>
             <p className="text-base sm:text-lg text-gray-200 md:text-gray-600 mb-8 md:mb-10 leading-relaxed max-w-md font-light tracking-wide animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-              {t('home.heroSubtitle')}
+              {heroText.subtitle}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-              <Link to="/products"><Button size="lg" className="w-full shadow-xl shadow-brand-green/20">{t('home.shopCollection')}</Button></Link>
-              <Button variant="outline" size="lg" className="w-full sm:w-auto bg-white/10 md:bg-transparent border-white/40 md:border-gray-900 text-white md:text-gray-900 hover:bg-white hover:text-brand-dark backdrop-blur-sm md:backdrop-blur-none">
-                {t('home.takeQuiz')}
-              </Button>
+              <Link to={hero?.primaryLink || '/products'}><Button size="lg" className="w-full shadow-xl shadow-brand-green/20">{heroText.primaryLabel}</Button></Link>
+              <Link to={hero?.secondaryLink || '/products'} className="w-full sm:w-auto">
+                <Button variant="outline" size="lg" className="w-full bg-white/10 md:bg-transparent border-white/40 md:border-gray-900 text-white md:text-gray-900 hover:bg-white hover:text-brand-dark backdrop-blur-sm md:backdrop-blur-none">
+                  {heroText.secondaryLabel}
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
         <div className="hidden md:block w-1/2 h-full relative overflow-hidden">
-          <img src="https://images.unsplash.com/photo-1616683693504-3ea7e9ad6fec?auto=format&fit=crop&q=80&w=1200" alt="Beauty" className="w-full h-full object-cover animate-float" style={{ animationDuration: '8s' }} />
+          {heroImage && (
+            <img
+              src={imageUrl(heroImage, { width: 1200 })}
+              srcSet={imageSrcSet(heroImage, [800, 1200, 1600])}
+              sizes="50vw"
+              alt={heroText.title}
+              className="w-full h-full object-cover animate-float"
+              style={{ animationDuration: '8s' }}
+              fetchPriority="high"
+              decoding="async"
+            />
+          )}
           <div className="absolute inset-0 bg-gradient-to-r from-white via-transparent to-transparent opacity-90"></div>
         </div>
       </section>
@@ -145,21 +225,33 @@ export const HomePage = () => {
             {categories.slice(0, 6).map((cat) => (
                 <div key={cat.slug} className={`snap-start shrink-0 w-[260px] md:w-auto flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 ${expandedCategory === cat.slug ? 'ring-1 ring-brand-green' : ''}`}>
                   <Link to={`/category/${cat.slug}`} className="relative aspect-[4/3] md:aspect-square overflow-hidden group block">
-                    <img src={cat.image || 'https://via.placeholder.com/400'} alt={cat.label} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+                    {cat.image ? (
+                      <img
+                        src={imageUrl(cat.image, { width: 500 })}
+                        srcSet={imageSrcSet(cat.image, [300, 500, 800])}
+                        sizes="(min-width: 1024px) 16vw, (min-width: 768px) 33vw, 260px"
+                        alt={categoryLabel(cat, i18n.language)}
+                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100" />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-60 md:opacity-0 md:group-hover:opacity-40 transition-opacity" />
-                    <span className="absolute bottom-4 left-4 text-white font-bold text-lg md:hidden drop-shadow-md">{t(`categories.${cat.slug}`, cat.label)}</span>
+                    <span className="absolute bottom-4 left-4 text-white font-bold text-lg md:hidden drop-shadow-md">{categoryLabel(cat, i18n.language)}</span>
                   </Link>
                   <div className="p-4 flex flex-col flex-1">
                     <div className="flex justify-between items-center mb-2">
-                      <Link to={`/category/${cat.slug}`} className="font-heading font-bold text-gray-900 hover:text-brand-green transition-colors text-sm md:text-base">{t(`categories.${cat.slug}`, cat.label)}</Link>
+                      <Link to={`/category/${cat.slug}`} className="font-heading font-bold text-gray-900 hover:text-brand-green transition-colors text-sm md:text-base">{categoryLabel(cat, i18n.language)}</Link>
                       <button onClick={() => toggleCategory(cat.slug)} className="md:hidden p-1.5 rounded-full hover:bg-gray-100"><ChevronDown className={`w-5 h-5 transition-transform ${expandedCategory === cat.slug ? 'rotate-180' : ''}`} /></button>
                     </div>
                     <div className={`text-sm text-gray-500 overflow-hidden transition-all duration-300 ${expandedCategory === cat.slug ? 'max-h-[300px] opacity-100 mt-2' : 'max-h-0 opacity-0 md:max-h-none md:opacity-100 md:mt-2'}`}>
                       <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100 md:border-none md:pt-0">
                         {cat.subs.slice(0, 4).map(sub => (
-                          <Link key={sub} to={`/category/${cat.slug}?subCategory=${encodeURIComponent(sub)}`} className="flex items-center gap-2 hover:text-brand-green transition-colors py-0.5 group/sub">
+                          <Link key={sub.slug} to={`/category/${cat.slug}?subCategory=${encodeURIComponent(sub.slug)}`} className="flex items-center gap-2 hover:text-brand-green transition-colors py-0.5 group/sub">
                             <div className="w-1 h-1 rounded-full bg-gray-300 group-hover/sub:bg-brand-green md:hidden"></div>
-                            <span className="truncate">{t(`subCategories.${sub}`, sub)}</span>
+                            <span className="truncate">{subLabel(sub, i18n.language)}</span>
                           </Link>
                         ))}
                       </div>
@@ -227,7 +319,15 @@ export const HomePage = () => {
                  return (
                      <Link key={idx} to={`/products?skinType=${encodeURIComponent(type.name)}`} className="group relative min-w-[260px] md:min-w-0 h-[400px] md:h-[450px] rounded-2xl overflow-hidden snap-start transition-all duration-700 hover:shadow-2xl hover:shadow-brand-green/10">
                         <div className="absolute inset-0 overflow-hidden">
-                            <img src={type.image} alt={type.name} className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110 opacity-80" />
+                            <img
+                                src={imageUrl(type.image, { width: 700 })}
+                                srcSet={imageSrcSet(type.image, [400, 700, 1000])}
+                                sizes="(min-width: 1024px) 20vw, (min-width: 640px) 45vw, 90vw"
+                                alt={type.name}
+                                className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110 opacity-80"
+                                loading="lazy"
+                                decoding="async"
+                            />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
                         </div>
                         <div className="absolute inset-0 p-6 flex flex-col justify-end">
@@ -259,8 +359,23 @@ export const HomePage = () => {
         </div>
         <div className="container mx-auto px-4 flex overflow-x-auto snap-x snap-mandatory gap-4 pb-8 md:grid md:grid-cols-2 lg:grid-cols-4 md:gap-6 md:pb-0 scrollbar-hide">
           {brands.map((brand) => (
-              <Link key={brand.id} to={`/products?brands=${brand.slug}`} className="group relative aspect-[4/5] min-w-[260px] md:min-w-0 rounded-2xl overflow-hidden snap-start transition-all duration-500 hover:shadow-xl hover:shadow-gray-200">
-                  <div className="absolute inset-0"><img src={brand.image || 'https://via.placeholder.com/800'} alt={brand.name} className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" /><div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div></div>
+              <Link key={brand.id} to={`/brand/${brand.slug}`} className="group relative aspect-[4/5] min-w-[260px] md:min-w-0 rounded-2xl overflow-hidden snap-start transition-all duration-500 hover:shadow-xl hover:shadow-gray-200">
+                  <div className="absolute inset-0">
+                    {brand.image ? (
+                      <img
+                        src={imageUrl(brand.image, { width: 800 })}
+                        srcSet={imageSrcSet(brand.image, [500, 800, 1200])}
+                        sizes="(min-width: 768px) 45vw, 90vw"
+                        alt={brand.name}
+                        className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-800" />
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-60 group-hover:opacity-80 transition-opacity"></div>
+                  </div>
                   <div className="absolute inset-0 p-8 flex flex-col justify-end">
                       <div className="transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
                           <h3 className="font-heading font-bold text-3xl text-white mb-2 tracking-tight">{brand.name}</h3>
@@ -279,7 +394,15 @@ export const HomePage = () => {
             <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-bl from-brand-green/10 via-transparent to-transparent"></div>
             <div className="container mx-auto px-4 relative z-10 flex flex-col md:flex-row items-center gap-12 md:gap-16">
             <div className="flex-1 relative h-[300px] md:h-[500px] w-full max-w-lg mx-auto md:order-2 group">
-                <img src={promoContent.image} alt={promoText.title} className="absolute inset-0 w-full h-full object-cover rounded-md shadow-2xl transition-transform duration-1000 group-hover:scale-105" />
+                <img
+                    src={imageUrl(promoContent.image, { width: 900 })}
+                    srcSet={imageSrcSet(promoContent.image, [600, 900, 1300])}
+                    sizes="(min-width: 768px) 45vw, 90vw"
+                    alt={promoText.title}
+                    className="absolute inset-0 w-full h-full object-cover rounded-md shadow-2xl transition-transform duration-1000 group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                />
             </div>
             <div className="flex-1 text-center md:text-left md:order-1">
                 <span className="inline-block py-1.5 px-4 border border-white/20 text-brand-green text-xs font-bold uppercase tracking-widest rounded-full mb-6 md:mb-8 backdrop-blur-sm">Limited Edition</span>
@@ -292,21 +415,37 @@ export const HomePage = () => {
       )}
       
       <RecentlyViewed />
-      <section className="py-20 bg-white">
-         <div className="container mx-auto px-4 text-center mb-12">
-            <div className="inline-flex items-center justify-center gap-2 mb-4 px-4 py-1.5 rounded-full bg-gray-50 text-gray-900 border border-gray-100 shadow-sm"><Instagram className="w-4 h-4" /><span className="font-bold tracking-widest text-xs uppercase">@LESIKO_OFFICIAL</span></div>
-            <h2 className="font-heading text-4xl font-bold text-gray-900 tracking-tight mb-4">{t('home.asSeenOn')}</h2>
-            <p className="text-gray-500 font-light text-lg max-w-lg mx-auto">{t('home.tagUs')}</p>
-         </div>
-         <div className="grid grid-cols-2 md:grid-cols-5 gap-1 md:gap-4 px-2 md:px-8">
-            {INSTAGRAM_POSTS.map((url, i) => (
-                <div key={i} className="relative group overflow-hidden aspect-square cursor-pointer bg-gray-100 rounded-lg">
-                    <img src={url} alt="Insta" className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110" />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]"><Instagram className="w-8 h-8 text-white drop-shadow-lg" /></div>
-                </div>
-            ))}
-         </div>
-      </section>
+      {social && social.images.length > 0 && (
+        <section className="py-20 bg-white">
+           <div className="container mx-auto px-4 text-center mb-12">
+              <a href={social.profileUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 mb-4 px-4 py-1.5 rounded-full bg-gray-50 text-gray-900 border border-gray-100 shadow-sm hover:border-brand-green transition-colors"><Instagram className="w-4 h-4" /><span className="font-bold tracking-widest text-xs uppercase">{social.handle}</span></a>
+              <h2 className="font-heading text-4xl font-bold text-gray-900 tracking-tight mb-4">{pick(social.title, social.titleKa)}</h2>
+              <p className="text-gray-500 font-light text-lg max-w-lg mx-auto">{pick(social.subtitle, social.subtitleKa)}</p>
+           </div>
+           <div className="grid grid-cols-2 md:grid-cols-5 gap-1 md:gap-4 px-2 md:px-8">
+              {social.images.map((url, i) => (
+                  <a
+                    key={`${url}-${i}`}
+                    href={social.profileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="relative group overflow-hidden aspect-square cursor-pointer bg-gray-100 rounded-lg block"
+                  >
+                      <img
+                        src={imageUrl(url, { width: 400 })}
+                        srcSet={imageSrcSet(url, [300, 400, 600])}
+                        sizes="(min-width: 768px) 20vw, 50vw"
+                        alt={`${social.handle} post ${i + 1}`}
+                        className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]"><Instagram className="w-8 h-8 text-white drop-shadow-lg" /></div>
+                  </a>
+              ))}
+           </div>
+        </section>
+      )}
     </div>
   );
 };

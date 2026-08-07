@@ -1,6 +1,6 @@
 
 import React, { useEffect, Suspense, ReactNode, Component } from 'react';
-import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 
 // Layout & Components
 import { Header } from './components/layout/Header';
@@ -8,6 +8,7 @@ import { Footer } from './components/layout/Footer';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { QuickViewModal } from './components/product/QuickViewModal';
 import { Toaster } from './components/ui/Toaster'; 
+import { useSettingsStore } from './store/settings-store';
 
 // Admin
 import { AdminLayout } from './components/admin/AdminLayout';
@@ -18,18 +19,23 @@ import { AdminCustomers } from './pages/admin/AdminCustomers';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { AdminCategories } from './pages/admin/AdminCategories';
 import { AdminBrands } from './pages/admin/AdminBrands';
+import { AdminContent } from './pages/admin/AdminContent';
+import { AdminSEO } from './pages/admin/AdminSEO';
 
 // Pages
 import { HomePage } from './pages/HomePage';
 import { ProductListingPage } from './pages/ProductListingPage';
+import { BrandIndexPage } from './pages/BrandIndexPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { WishlistPage } from './pages/WishlistPage';
+import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { AccountPage } from './pages/AccountPage';
 import { HelpPage } from './pages/HelpPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -78,16 +84,13 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="min-h-[50vh] flex items-center justify-center bg-gray-50">
-    <div className="text-center">
-      <h1 className="text-4xl font-heading font-bold text-gray-900 mb-4">{title}</h1>
-      <p className="text-gray-600">This page is under construction.</p>
-    </div>
-  </div>
-);
-
 const App = () => {
+  const loadSettings = useSettingsStore(s => s.loadSettings);
+
+  // Tax rate and free-shipping threshold live in site_content, so the cart and
+  // checkout need them before the first total is rendered.
+  useEffect(() => { loadSettings(); }, [loadSettings]);
+
   return (
     <ErrorBoundary>
       <Router>
@@ -104,6 +107,8 @@ const App = () => {
                     <Route path="brands" element={<AdminBrands />} />
                     <Route path="orders" element={<AdminOrders />} />
                     <Route path="customers" element={<AdminCustomers />} />
+                    <Route path="content" element={<AdminContent />} />
+                    <Route path="seo" element={<AdminSEO />} />
                     <Route path="settings" element={<AdminSettings />} />
                 </Route>
 
@@ -117,16 +122,20 @@ const App = () => {
                                 <Route path="/" element={<HomePage />} />
                                 <Route path="/products" element={<ProductListingPage />} />
                                 <Route path="/category/:slug" element={<ProductListingPage />} />
+                                <Route path="/brand/:slug" element={<ProductListingPage />} />
+                                <Route path="/brands" element={<BrandIndexPage />} />
                                 <Route path="/product/:slug" element={<ProductDetailPage />} />
                                 <Route path="/sale" element={<ProductListingPage />} />
                                 <Route path="/wishlist" element={<WishlistPage />} />
                                 <Route path="/login" element={<LoginPage />} />
                                 <Route path="/register" element={<RegisterPage />} />
                                 <Route path="/account" element={<AccountPage />} />
+                                <Route path="/account/orders" element={<AccountPage />} />
                                 <Route path="/help" element={<HelpPage />} />
+                                <Route path="/cart" element={<CartPage />} />
                                 <Route path="/checkout" element={<CheckoutPage />} />
                                 <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
-                                <Route path="*" element={<PlaceholderPage title="404 - Not Found" />} />
+                                <Route path="*" element={<NotFoundPage />} />
                             </Routes>
                         </main>
                         <Footer />

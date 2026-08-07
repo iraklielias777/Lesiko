@@ -1,11 +1,12 @@
 
 import React, { useState, useEffect } from 'react';
-import { Navigate, Link } from 'react-router-dom';
+import { Navigate, Link, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/auth-store';
 import { useCartStore } from '../store/cart-store';
 import { useToastStore } from '../store/toast-store';
 import { AuthService } from '../services/auth-service';
 import { OrderService } from '../services/order-service';
+import { AddressService } from '../services/address-service';
 import { 
   Package, 
   User, 
@@ -17,44 +18,54 @@ import {
   Box,
   Truck,
   Plus,
-  ArrowLeft,
+  Star,
+  Trash2,
+  Edit2,
   ShoppingBag,
   ArrowRight
 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Address, Order } from '../types';
+import { Address, Order, SavedAddress, User as UserType } from '../types';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
-
-const INITIAL_ADDRESSES: (Address & { id: string, isDefault: boolean })[] = [
-    { id: 'addr_1', isDefault: true, firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', address1: '123 Beauty Lane, Suite 400', city: 'Los Angeles', state: 'CA', zip: '90012', country: 'United States' }
-];
+import { useFormatPrice } from '../lib/format';
 
 type TabType = 'overview' | 'orders' | 'profile' | 'addresses';
 
+const EMPTY_ADDRESS: Address = {
+  firstName: '', lastName: '', email: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'United States'
+};
+
+const SKIN_TYPES: NonNullable<UserType['skinType']>[] = ['normal', 'dry', 'oily', 'combination', 'sensitive'];
+
 export const AccountPage = () => {
-  const { t } = useTranslation();
+  const fmt = useFormatPrice();
+  const { t, i18n } = useTranslation();
+  const { pathname } = useLocation();
   const { user, isAuthenticated, logout, updateUser } = useAuthStore();
   const addItemToCart = useCartStore(state => state.addItem);
   const addToast = useToastStore(state => state.addToast);
   
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>(pathname.endsWith('/orders') ? 'orders' : 'overview');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [orderList, setOrderList] = useState<Order[]>([]);
   
-  const [profileForm, setProfileForm] = useState({
+  const [profileForm, setProfileForm] = useState<{
+      firstName: string;
+      lastName: string;
+      skinType: UserType['skinType'] | '';
+  }>({
       firstName: user?.firstName || '',
       lastName: user?.lastName || '',
       skinType: user?.skinType || ''
   });
 
-  const [addresses, setAddresses] = useState(INITIAL_ADDRESSES);
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [isAddressFormOpen, setIsAddressFormOpen] = useState(false);
+  const [isSavingAddress, setIsSavingAddress] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
-  const [addressForm, setAddressForm] = useState<Address>({
-      firstName: '', lastName: '', email: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'United States'
-  });
+  const [addressForm, setAddressForm] = useState<Address>(EMPTY_ADDRESS);
 
   useEffect(() => {
       if (user?.email) {
@@ -66,6 +77,7 @@ export const AccountPage = () => {
               lastName: user.lastName,
               skinType: user.skinType || ''
           });
+          AddressService.getAddresses(user.id).then(setAddresses);
       }
   }, [user]);
 
@@ -80,8 +92,13 @@ export const AccountPage = () => {
 
   const handleSaveProfile = async () => {
       try {
-          await AuthService.updateProfile(user.id, profileForm);
-          updateUser(profileForm as any);
+          const patch = {
+              firstName: profileForm.firstName,
+              lastName: profileForm.lastName,
+              skinType: profileForm.skinType || undefined,
+          };
+          await AuthService.updateProfile(user.id, patch);
+          updateUser(patch);
           addToast("Profile updated successfully");
           setIsEditingProfile(false);
       } catch (err) {
@@ -93,30 +110,62 @@ export const AccountPage = () => {
       addItemToCart(item.product);
   };
 
-  const handleEditAddress = (addr: typeof addresses[0]) => {
-      setAddressForm(addr);
-      setEditingAddressId(addr.id);
+  const openAddressForm = (addr?: SavedAddress) => {
+      if (addr) {
+          const { id, isDefault, ...rest } = addr;
+          setAddressForm(rest);
+          setEditingAddressId(id);
+      } else {
+          setAddressForm({ ...EMPTY_ADDRESS, firstName: user.firstName, lastName: user.lastName, email: user.email });
+          setEditingAddressId(null);
+      }
       setIsAddressFormOpen(true);
   };
 
-  const handleSaveAddress = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (editingAddressId) {
-          setAddresses(prev => prev.map(a => a.id === editingAddressId ? { ...addressForm, id: a.id, isDefault: a.isDefault } : a));
-          addToast("Address updated successfully");
-      } else {
-          setAddresses(prev => [...prev, { ...addressForm, id: crypto.randomUUID(), isDefault: prev.length === 0 }]);
-          addToast("New address added");
-      }
+  const closeAddressForm = () => {
       setIsAddressFormOpen(false);
       setEditingAddressId(null);
-      setAddressForm({ firstName: '', lastName: '', email: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'United States' });
+      setAddressForm(EMPTY_ADDRESS);
   };
 
-  const handleDeleteAddress = (id: string) => {
-      if (confirm('Are you sure you want to delete this address?')) {
+  const handleSaveAddress = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsSavingAddress(true);
+      try {
+          if (editingAddressId) {
+              const saved = await AddressService.updateAddress(editingAddressId, addressForm);
+              setAddresses(prev => prev.map(a => (a.id === saved.id ? saved : a)));
+              addToast("Address updated successfully");
+          } else {
+              const saved = await AddressService.addAddress(user.id, addressForm, addresses.length === 0);
+              setAddresses(prev => [...prev, saved]);
+              addToast("New address added");
+          }
+          closeAddressForm();
+      } catch (err) {
+          addToast(err instanceof Error ? err.message : "Failed to save address", "error");
+      } finally {
+          setIsSavingAddress(false);
+      }
+  };
+
+  const handleSetDefaultAddress = async (id: string) => {
+      try {
+          await AddressService.setDefault(user.id, id);
+          setAddresses(prev => prev.map(a => ({ ...a, isDefault: a.id === id })));
+      } catch (err) {
+          addToast("Failed to update default address", "error");
+      }
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+      if (!confirm('Are you sure you want to delete this address?')) return;
+      try {
+          await AddressService.deleteAddress(id);
           setAddresses(prev => prev.filter(a => a.id !== id));
           addToast("Address deleted", 'info');
+      } catch (err) {
+          addToast("Failed to delete address", "error");
       }
   };
 
@@ -149,7 +198,7 @@ export const AccountPage = () => {
               <h1 className="font-heading text-3xl md:text-4xl font-bold text-gray-900 mb-2">
                 {t('account.hello')}, {user.firstName}
               </h1>
-              <p className="text-gray-500 font-light">{t('account.memberSince')} 2023 • {user.skinType ? <span className="capitalize">{t(`skinTypes.${user.skinType}`, user.skinType) as string} {t('common.skin') as string}</span> : t('account.skinProfileIncomplete') as string}</p>
+              <p className="text-gray-500 font-light">{t('account.memberSince')} {user.createdAt ? new Date(user.createdAt).toLocaleDateString(i18n.language === 'ka' ? 'ka-GE' : 'en-US', { year: 'numeric', month: 'short' }) : '—'} • {user.skinType ? <span className="capitalize">{t(`skinTypes.${user.skinType}`, user.skinType) as string} {t('common.skin') as string}</span> : t('account.skinProfileIncomplete') as string}</p>
             </div>
           </div>
         </div>
@@ -224,7 +273,7 @@ export const AccountPage = () => {
                                 }`}>
                                     {t(`status.${orderList[0].status}`) || orderList[0].status}
                                 </div>
-                                <p className="font-bold text-gray-900">${orderList[0].total.toFixed(2)}</p>
+                                <p className="font-bold text-gray-900">{fmt(orderList[0].total)}</p>
                             </div>
                         </div>
                     </div>
@@ -264,7 +313,7 @@ export const AccountPage = () => {
                                 </div>
                                 <div>
                                     <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{t('common.total')}</p>
-                                    <p className="text-sm font-medium text-gray-900">${order.total.toFixed(2)}</p>
+                                    <p className="text-sm font-medium text-gray-900">{fmt(order.total)}</p>
                                 </div>
                             </div>
                             <div className="p-6">
@@ -281,6 +330,85 @@ export const AccountPage = () => {
                         </div>
                     ))
                  )}
+              </div>
+            )}
+
+            {activeTab === 'addresses' && (
+              <div className="space-y-6 animate-fade-in">
+                <div className="flex justify-between items-center">
+                  <h2 className="font-heading text-2xl font-bold text-gray-900">{t('account.addresses')}</h2>
+                  {!isAddressFormOpen && (
+                    <Button size="sm" onClick={() => openAddressForm()} leftIcon={<Plus className="w-4 h-4" />}>
+                      Add address
+                    </Button>
+                  )}
+                </div>
+
+                {isAddressFormOpen && (
+                  <form onSubmit={handleSaveAddress} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 space-y-4 animate-fade-in">
+                    <h3 className="font-heading font-bold text-lg">
+                      {editingAddressId ? 'Edit address' : 'New address'}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Input label={t('checkout.firstName')} required value={addressForm.firstName} onChange={e => setAddressForm({...addressForm, firstName: e.target.value})} />
+                      <Input label={t('checkout.lastName')} required value={addressForm.lastName} onChange={e => setAddressForm({...addressForm, lastName: e.target.value})} />
+                    </div>
+                    <Input label={t('checkout.email')} type="email" required value={addressForm.email} onChange={e => setAddressForm({...addressForm, email: e.target.value})} />
+                    <Input label={t('checkout.address')} required value={addressForm.address1} onChange={e => setAddressForm({...addressForm, address1: e.target.value})} />
+                    <Input label={t('checkout.apt')} value={addressForm.address2 || ''} onChange={e => setAddressForm({...addressForm, address2: e.target.value})} />
+                    <div className="grid grid-cols-3 gap-4">
+                      <Input label={t('checkout.city')} required value={addressForm.city} onChange={e => setAddressForm({...addressForm, city: e.target.value})} />
+                      <Input label={t('checkout.state')} required value={addressForm.state} onChange={e => setAddressForm({...addressForm, state: e.target.value})} />
+                      <Input label={t('checkout.zip')} required value={addressForm.zip} onChange={e => setAddressForm({...addressForm, zip: e.target.value})} />
+                    </div>
+                    <Input label="Country" required value={addressForm.country} onChange={e => setAddressForm({...addressForm, country: e.target.value})} />
+                    <div className="pt-4 flex justify-end gap-3">
+                      <Button type="button" variant="outline" onClick={closeAddressForm}>{t('common.cancel')}</Button>
+                      <Button type="submit" isLoading={isSavingAddress}>{t('account.saveChanges')}</Button>
+                    </div>
+                  </form>
+                )}
+
+                {addresses.length === 0 && !isAddressFormOpen ? (
+                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-16 text-center flex flex-col items-center">
+                    <MapPin className="w-10 h-10 text-gray-300 mb-6" />
+                    <h3 className="font-heading font-bold text-2xl text-gray-900 mb-2">No saved addresses</h3>
+                    <p className="text-gray-500 text-sm mb-6">Save an address to speed up checkout next time.</p>
+                    <Button onClick={() => openAddressForm()} leftIcon={<Plus className="w-4 h-4" />}>Add address</Button>
+                  </div>
+                ) : (
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    {addresses.map(addr => (
+                      <div key={addr.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col">
+                        <div className="flex items-start justify-between mb-3">
+                          <p className="font-bold text-gray-900">{addr.firstName} {addr.lastName}</p>
+                          {addr.isDefault && (
+                            <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-green/10 text-brand-green px-2 py-1 rounded">Default</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 leading-relaxed flex-1">
+                          {addr.address1}<br />
+                          {addr.address2 && <>{addr.address2}<br /></>}
+                          {addr.city}, {addr.state} {addr.zip}<br />
+                          {addr.country}
+                        </p>
+                        <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-100">
+                          <button type="button" onClick={() => openAddressForm(addr)} className="text-xs font-bold text-gray-500 hover:text-brand-green flex items-center gap-1">
+                            <Edit2 className="w-3 h-3" /> {t('common.edit')}
+                          </button>
+                          {!addr.isDefault && (
+                            <button type="button" onClick={() => handleSetDefaultAddress(addr.id)} className="text-xs font-bold text-gray-500 hover:text-brand-green flex items-center gap-1">
+                              <Star className="w-3 h-3" /> Set default
+                            </button>
+                          )}
+                          <button type="button" onClick={() => handleDeleteAddress(addr.id)} className="text-xs font-bold text-gray-400 hover:text-red-500 flex items-center gap-1 ml-auto">
+                            <Trash2 className="w-3 h-3" /> {t('common.remove')}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -306,18 +434,18 @@ export const AccountPage = () => {
                      <div className="pt-6 border-t border-gray-100">
                         <h3 className="font-heading font-bold text-lg mb-4">{t('account.skinProfile')}</h3>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                           {['Normal', 'Dry', 'Oily', 'Combination', 'Sensitive'].map((type) => (
+                           {SKIN_TYPES.map((type) => (
                               <button
                                  key={type}
                                  disabled={!isEditingProfile}
-                                 onClick={() => setProfileForm({...profileForm, skinType: type.toLowerCase() as any})}
-                                 className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all ${
-                                    profileForm.skinType?.toLowerCase() === type.toLowerCase()
+                                 onClick={() => setProfileForm({...profileForm, skinType: type})}
+                                 className={`px-4 py-3 rounded-lg border text-sm font-medium transition-all capitalize ${
+                                    profileForm.skinType === type
                                     ? 'border-brand-green bg-brand-green/5 text-brand-dark'
                                     : 'border-gray-200 text-gray-500'
                                  } ${!isEditingProfile && 'opacity-70 cursor-not-allowed'}`}
                               >
-                                 {t(`skinTypes.${type.toLowerCase()}`, type)}
+                                 {t(`skinTypes.${type}`, type)}
                               </button>
                            ))}
                         </div>

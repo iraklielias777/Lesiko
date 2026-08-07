@@ -8,11 +8,13 @@ import { Input } from '../components/ui/Input';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
+import { usePageSeo } from '../lib/use-seo';
 
 export const RegisterPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const seo = usePageSeo('register', { title: t('auth.createAccount') });
   const [formData, setFormData] = useState({ 
     firstName: '', 
     lastName: '', 
@@ -51,7 +53,7 @@ export const RegisterPage = () => {
 
   return (
     <div className="min-h-screen flex bg-white">
-      <SEO title={t('auth.createAccount')} />
+      <SEO title={seo.title} description={seo.description} noindex={seo.noindex} canonicalPath="/register" />
 
       {/* Left: Image (Hidden on mobile) */}
       <div className="hidden lg:block lg:w-1/2 relative bg-gray-900">

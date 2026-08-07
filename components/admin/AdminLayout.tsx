@@ -13,6 +13,8 @@ import {
   Home,
   ListFilter,
   Tag,
+  FileText,
+  Search,
   Loader2
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth-store';
@@ -35,8 +37,8 @@ export const AdminLayout = () => {
         return;
       }
 
-      // 2. If we have a user but they aren't an admin, kick them out
-      if (user && user.role !== 'admin') {
+      // 2. Anyone still here has a non-admin role, so kick them out
+      if (user) {
         navigate('/', { replace: true });
         return;
       }
@@ -72,8 +74,17 @@ export const AdminLayout = () => {
     { icon: Tag, label: t('admin.brands'), path: '/admin/brands' },
     { icon: ShoppingBag, label: t('admin.orders'), path: '/admin/orders' },
     { icon: Users, label: t('admin.customers'), path: '/admin/customers' },
+    { icon: FileText, label: t('admin.content'), path: '/admin/content' },
+    { icon: Search, label: t('admin.seo'), path: '/admin/seo' },
     { icon: Settings, label: t('admin.settings'), path: '/admin/settings' },
   ];
+
+  // The storefront's SEO component owns document.title, so without this the
+  // admin inherits whichever shop page was open last.
+  const activeLabel = navItems.find(item => item.path === location.pathname)?.label;
+  useEffect(() => {
+    document.title = activeLabel ? `${activeLabel} | ${t('common.admin')}` : t('common.admin');
+  }, [activeLabel, t]);
 
   // Show loading while verifying role
   if (isChecking) {
@@ -97,11 +108,11 @@ export const AdminLayout = () => {
 
       {/* Sidebar */}
       <aside 
-        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-brand-dark text-white z-50 transition-transform duration-300 ease-in-out ${
+        className={`fixed lg:sticky top-0 left-0 h-screen w-64 bg-brand-dark text-white z-50 flex flex-col transition-transform duration-300 ease-in-out ${
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         }`}
       >
-        <div className="p-6 flex items-center justify-between border-b border-gray-800">
+        <div className="p-6 flex items-center justify-between border-b border-gray-800 shrink-0">
            <span className="font-heading font-bold text-2xl tracking-tight">
              Lesi<span className="text-brand-green">Ko</span>
              <span className="text-xs ml-2 bg-brand-green text-brand-dark px-1.5 py-0.5 rounded font-bold">ADMIN</span>
@@ -111,7 +122,7 @@ export const AdminLayout = () => {
            </button>
         </div>
 
-        <nav className="p-4 space-y-2 mt-4">
+        <nav className="p-4 space-y-2 mt-4 flex-1 overflow-y-auto">
           {navItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
@@ -132,7 +143,7 @@ export const AdminLayout = () => {
           })}
         </nav>
 
-        <div className="absolute bottom-0 left-0 w-full p-4 border-t border-gray-800">
+        <div className="shrink-0 w-full p-4 border-t border-gray-800">
            <Link to="/" className="flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors mb-2">
               <Home className="w-5 h-5" /> {t('admin.viewStore')}
            </Link>

@@ -6,8 +6,10 @@ import { Button } from '../components/ui/Button';
 import { Order } from '../types';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
+import { useFormatPrice } from '../lib/format';
 
 export const OrderConfirmationPage = () => {
+  const fmt = useFormatPrice();
   const { t } = useTranslation();
   const location = useLocation();
   const state = location.state as { orderId: string, order: Order } | undefined;
@@ -27,7 +29,7 @@ export const OrderConfirmationPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12">
-      <SEO title="Order Confirmed" noindex />
+      <SEO title={t('checkout.thankYou')} noindex />
 
       <div className="container mx-auto px-4 max-w-2xl">
         <div className="bg-white rounded-lg shadow-sm p-8 text-center mb-8 animate-scale-in">
@@ -70,7 +72,7 @@ export const OrderConfirmationPage = () => {
           <div className="border-t border-gray-100 pt-4 mt-4">
              <div className="flex justify-between items-center">
                 <span className="font-medium text-gray-900">{t('checkout.totalPaid')}</span>
-                <span className="font-bold text-xl text-brand-green">${order.total.toFixed(2)}</span>
+                <span className="font-bold text-xl text-brand-green">{fmt(order.total)}</span>
              </div>
           </div>
         </div>

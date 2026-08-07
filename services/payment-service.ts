@@ -1,23 +1,27 @@
 import { Order, Address, CartItem } from '../types';
 
+export interface OrderTotals {
+  subtotal: number;
+  shipping: number;
+  tax: number;
+  total: number;
+}
+
 // Simulating the backend PaymentService and EmailService logic
 export const PaymentService = {
   
-  // Simulate creating a payment intent and calculating totals
-  createPaymentIntent: async (items: CartItem[], shippingAddress: Address) => {
-    return new Promise<{ clientSecret: string; orderId: string; totals: any }>((resolve) => {
+  // Simulate creating a payment intent. Totals are passed in rather than
+  // recomputed here so the tax rate and free-shipping threshold have a single
+  // source of truth (the store settings the admin edits).
+  createPaymentIntent: async (items: CartItem[], shippingAddress: Address, totals: OrderTotals) => {
+    return new Promise<{ clientSecret: string; orderId: string; totals: OrderTotals }>((resolve) => {
       setTimeout(() => {
-        const subtotal = items.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-        const shipping = subtotal > 50 ? 0 : 15; // Logic from header
-        const tax = subtotal * 0.08; // 8% tax mock
-        const total = subtotal + shipping + tax;
-
-        const orderId = `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        const orderId = `ORD-${Math.random().toString(36).substring(2, 11).toUpperCase()}`;
 
         resolve({
           clientSecret: 'mock_sk_test_12345', // Mock secret
           orderId,
-          totals: { subtotal, shipping, tax, total }
+          totals
         });
       }, 1500);
     });

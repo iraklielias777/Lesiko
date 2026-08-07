@@ -1,15 +1,30 @@
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Mail, Phone, Clock, Send, CheckCircle, Package, RefreshCw, ShoppingBag, User } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { SEO } from '../components/seo/SEO';
+import { ContentService } from '../services/content-service';
+import { useSettingsStore } from '../store/settings-store';
+import { HelpContent } from '../types';
+import { usePageSeo } from '../lib/use-seo';
 
 export const HelpPage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [activeAccordion, setActiveAccordion] = useState<number | null>(null);
   const [contactStatus, setContactStatus] = useState<'idle' | 'success'>('idle');
+  const [content, setContent] = useState<HelpContent | null>(null);
+  const storeName = useSettingsStore(s => s.settings.storeName);
+  const supportEmail = useSettingsStore(s => s.settings.supportEmail);
+  const seo = usePageSeo('help', {
+    title: t('help.title'),
+    description: `Frequently asked questions and support for ${storeName}.`
+  });
+
+  useEffect(() => {
+    ContentService.getHelpContent().then(setContent).catch(() => {});
+  }, []);
 
   const toggleAccordion = (index: number) => {
     setActiveAccordion(activeAccordion === index ? null : index);
@@ -22,18 +37,46 @@ export const HelpPage = () => {
     setTimeout(() => setContactStatus('idle'), 3000);
   };
 
-  const faqs = [
-    { question: t('help.q1'), answer: t('help.a1'), category: 'shipping' },
-    { question: t('help.q2'), answer: t('help.a2'), category: 'shipping' },
-    { question: t('help.q3'), answer: t('help.a3'), category: 'returns' },
-    { question: t('help.q6'), answer: t('help.a6'), category: 'account' },
-    { question: t('help.q4'), answer: t('help.a4'), category: 'products' },
-    { question: t('help.q5'), answer: t('help.a5'), category: 'products' },
-  ];
+  const isKa = i18n.language === 'ka';
+  const pick = (en: string, ka?: string) => (isKa && ka ? ka : en);
+
+  const faqs = (content?.faqs || []).map(f => ({
+    question: pick(f.question, f.questionKa),
+    answer: pick(f.answer, f.answerKa)
+  }));
+
+  // The store-wide support address wins over the one on the help block, so
+  // changing it in Settings does not leave a stale address on this page.
+  const email = supportEmail || content?.email || '';
+
+  // The FAQ list is already CMS-managed; publishing it as structured data is
+  // what makes the answers eligible to appear directly in search results.
+  const faqSchema = faqs.length ? {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqs
+      .filter(faq => faq.question.trim() && faq.answer.trim())
+      .map(faq => ({
+        '@type': 'Question',
+        name: faq.question,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: faq.answer.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+        }
+      }))
+  } : undefined;
 
   return (
     <div className="bg-white min-h-screen">
-      <SEO title={t('help.title')} description="Frequently Asked Questions and Support for LesiKo Cosmetics." />
+      <SEO
+        title={seo.title}
+        description={seo.description}
+        keywords={seo.keywords}
+        image={seo.image}
+        canonicalPath="/help"
+        noindex={seo.noindex}
+        structuredData={faqSchema}
+      />
 
       {/* Hero Section */}
       <div className="bg-[#FAFAF9] border-b border-gray-100 py-16 md:py-24">
@@ -60,6 +103,12 @@ export const HelpPage = () => {
             </h2>
             
             <div className="space-y-4">
+              {content === null && (
+                <p className="text-gray-400">{t('common.loading')}</p>
+              )}
+              {content !== null && faqs.length === 0 && (
+                <p className="text-gray-400 italic">No FAQs published yet.</p>
+              )}
               {faqs.map((faq, index) => {
                 const isOpen = activeAccordion === index;
                 return (
@@ -104,7 +153,7 @@ export const HelpPage = () => {
                       </div>
                       <div>
                          <h4 className="font-bold text-gray-900 mb-1">{t('help.emailUs')}</h4>
-                         <a href="mailto:support@lesiko.com" className="text-gray-600 hover:text-brand-green transition-colors">support@lesiko.com</a>
+                         <a href={`mailto:${email}`} className="text-gray-600 hover:text-brand-green transition-colors">{email}</a>
                       </div>
                    </div>
                    
@@ -114,7 +163,7 @@ export const HelpPage = () => {
                       </div>
                       <div>
                          <h4 className="font-bold text-gray-900 mb-1">{t('help.callUs')}</h4>
-                         <a href="tel:+995555123456" className="text-gray-600 hover:text-brand-green transition-colors">+995 555 123 456</a>
+                         <a href={`tel:${(content?.phone || '').replace(/[^+\d]/g, '')}`} className="text-gray-600 hover:text-brand-green transition-colors">{content?.phone}</a>
                       </div>
                    </div>
 
@@ -124,7 +173,7 @@ export const HelpPage = () => {
                       </div>
                       <div>
                          <h4 className="font-bold text-gray-900 mb-1">{t('help.workingHours')}</h4>
-                         <p className="text-gray-600">{t('help.monFri')}</p>
+                         <p className="text-gray-600">{pick(content?.hours || '', content?.hoursKa)}</p>
                       </div>
                    </div>
                 </div>

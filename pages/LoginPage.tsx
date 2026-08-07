@@ -8,11 +8,48 @@ import { Input } from '../components/ui/Input';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
+import { usePageSeo } from '../lib/use-seo';
+
+// ---------------------------------------------------------------------------
+// REMOVE BEFORE PUBLIC LAUNCH
+// Test credentials shown on the sign-in page so the admin panel can be reached
+// without asking for them. Delete this block and the <AdminTestCredentials />
+// usage below the sign-in form.
+// ---------------------------------------------------------------------------
+const ADMIN_TEST_EMAIL = 'admin@lesiko.com';
+const ADMIN_TEST_PASSWORD = '9L1z71cmUOsD39Wu5tLoAa1!';
+
+const AdminTestCredentials = ({ onUse }: { onUse: () => void }) => (
+  <div className="mt-8 rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4">
+    <p className="text-[10px] font-bold uppercase tracking-widest text-amber-700 mb-2">
+      Test admin — remove before launch
+    </p>
+    <dl className="text-xs text-amber-900 space-y-1 font-mono">
+      <div className="flex gap-2">
+        <dt className="text-amber-600">email</dt>
+        <dd>{ADMIN_TEST_EMAIL}</dd>
+      </div>
+      <div className="flex gap-2">
+        <dt className="text-amber-600">pass</dt>
+        <dd>{ADMIN_TEST_PASSWORD}</dd>
+      </div>
+    </dl>
+    <button
+      type="button"
+      onClick={onUse}
+      className="mt-3 text-xs font-bold text-amber-700 underline hover:text-amber-900"
+    >
+      Fill the form
+    </button>
+  </div>
+);
+// --------------------------------------------------------- end removable block
 
 export const LoginPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const login = useAuthStore((state) => state.login);
+  const seo = usePageSeo('login', { title: t('auth.signIn') });
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,7 +76,7 @@ export const LoginPage = () => {
       }, 50);
 
     } catch (err: any) {
-      setError(err.message || 'Failed to login. Try demo@lesiko.com / password');
+      setError(err.message || 'Failed to sign in. Check your email and password.');
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +84,7 @@ export const LoginPage = () => {
 
   return (
     <div className="min-h-screen flex bg-white">
-      <SEO title={t('auth.signIn')} />
+      <SEO title={seo.title} description={seo.description} noindex={seo.noindex} canonicalPath="/login" />
       
       {/* Left: Image (Hidden on mobile) */}
       <div className="hidden lg:block lg:w-1/2 relative bg-gray-900">
@@ -115,13 +152,13 @@ export const LoginPage = () => {
             >
               {t('auth.signIn')}
             </Button>
-            
-            <div className="text-center text-xs text-gray-400">
-              <p className="mb-1">Customer: <b>demo@lesiko.com</b> / <b>password</b></p>
-              <p>Admin: <b>admin@lesiko.com</b> / <b>admin123</b></p>
-            </div>
           </form>
-          
+
+          {/* REMOVE BEFORE PUBLIC LAUNCH — see the block at the top of this file */}
+          <AdminTestCredentials
+            onUse={() => setFormData({ email: ADMIN_TEST_EMAIL, password: ADMIN_TEST_PASSWORD })}
+          />
+
           <div className="mt-8 text-center border-t border-gray-100 pt-8">
              <p className="text-sm text-gray-600">
                {t('auth.dontHaveAccount')}{' '}

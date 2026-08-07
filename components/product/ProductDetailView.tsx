@@ -7,6 +7,9 @@ import { Product, ProductVariant } from '../../types';
 import { Button } from '../ui/Button';
 import { useCartStore } from '../../store/cart-store';
 import { useWishlistStore } from '../../store/wishlist-store';
+import { useSettingsStore } from '../../store/settings-store';
+import { imageSrcSet, imageUrl } from '../../lib/image-url';
+import { useFormatPrice } from '../../lib/format';
 
 interface ProductDetailViewProps {
   product: Product;
@@ -14,6 +17,7 @@ interface ProductDetailViewProps {
 }
 
 export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product }) => {
+  const fmt = useFormatPrice();
   const { t, i18n } = useTranslation();
   
   // -1 represents video, 0+ represents image index
@@ -28,6 +32,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   
   const addItem = useCartStore((state) => state.addItem);
   const { toggleItem: toggleWishlist, isInWishlist } = useWishlistStore();
+  const freeShippingThreshold = useSettingsStore(s => s.settings.freeShippingThreshold);
   const isFavorited = isInWishlist(product.id);
 
   const displayName = i18n.language === 'ka' ? (product.nameKa || product.name) : product.name;
@@ -52,13 +57,17 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   };
 
   const isVideoActive = activeMediaIndex === -1;
+  const activeImage = product.images[activeMediaIndex];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
+    // Capped so the gallery cannot grow with the viewport. Left uncapped, a
+    // square image on a 1500px screen renders ~700px tall and pushes the buy
+    // button below the fold.
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 max-w-6xl mx-auto w-full">
       {/* Left Column: Media Gallery */}
-      <div className="space-y-4">
+      <div className="space-y-4 w-full max-w-[560px] mx-auto md:mx-0">
         {/* Main Viewer */}
-        <div className="aspect-[4/5] bg-gray-100 rounded-2xl overflow-hidden relative shadow-sm border border-gray-100">
+        <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden relative shadow-sm border border-gray-100">
           {isVideoActive && product.videoPlaybackId ? (
              <MuxPlayer
                 streamType="on-demand"
@@ -70,23 +79,35 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
                 autoPlay="muted"
              />
           ) : (
-             <img 
-                src={product.images[activeMediaIndex]?.url} 
-                alt={product.name} 
-                className="w-full h-full object-cover"
+             /* Contained rather than cropped: a shopper deciding on a purchase
+                needs to see the whole bottle and its label. */
+             <img
+                src={imageUrl(activeImage?.url || '', { width: 560 })}
+                srcSet={imageSrcSet(activeImage?.url || '', [400, 560, 840, 1120])}
+                sizes="(min-width: 768px) 560px, 100vw"
+                alt={activeImage?.altText || product.name}
+                className="w-full h-full object-contain p-4"
+                decoding="async"
              />
           )}
         </div>
 
-        {/* Thumbnails */}
-        <div className="grid grid-cols-5 gap-3">
+        {/* Thumbnails — fixed size, so a product with two images does not get
+            thumbnails twice the size of one with five. */}
+        <div className="flex flex-wrap gap-3">
           {product.images.map((img, idx) => (
             <button 
               key={img.id}
               onClick={() => setActiveMediaIndex(idx)}
-              className={`aspect-square rounded-xl overflow-hidden border-2 transition-all ${!isVideoActive && activeMediaIndex === idx ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-200'}`}
+              className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${!isVideoActive && activeMediaIndex === idx ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-200'}`}
             >
-              <img src={img.url} alt="Thumbnail" className="w-full h-full object-cover" />
+              <img
+                src={imageUrl(img.url, { width: 160 })}
+                alt={img.altText || `${product.name} thumbnail`}
+                className="w-full h-full object-contain bg-gray-50 p-1"
+                loading="lazy"
+                decoding="async"
+              />
             </button>
           ))}
           
@@ -94,7 +115,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
           {product.videoPlaybackId && (
              <button
                 onClick={() => setActiveMediaIndex(-1)}
-                className={`aspect-square rounded-xl overflow-hidden border-2 transition-all bg-black flex items-center justify-center relative group ${isVideoActive ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-600'}`}
+                className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all bg-black flex items-center justify-center relative group ${isVideoActive ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-600'}`}
              >
                 <img 
                     src={`https://image.mux.com/${product.videoPlaybackId}/thumbnail.jpg?time=0`} 
@@ -116,19 +137,21 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
         </div>
         <h1 className="font-heading text-3xl lg:text-4xl font-bold text-gray-900 mb-4 leading-tight">{displayName}</h1>
         
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex items-center text-yellow-400">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.averageRating) ? 'fill-current' : 'text-gray-300'}`} />
-            ))}
+        {product.reviewCount > 0 && (
+          <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center text-yellow-400">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className={`w-4 h-4 ${i < Math.floor(product.averageRating) ? 'fill-current' : 'text-gray-300'}`} />
+              ))}
+            </div>
+            <span className="text-sm text-gray-500">{product.reviewCount} {t('product.reviews')}</span>
           </div>
-          <span className="text-sm text-gray-500">{product.reviewCount} {t('product.reviews')}</span>
-        </div>
+        )}
 
         <div className="flex items-center gap-3 mb-6">
-          <span className="text-3xl font-bold text-gray-900">${currentPrice.toFixed(2)}</span>
+          <span className="text-3xl font-bold text-gray-900">{fmt(currentPrice)}</span>
           {product.compareAtPrice && !selectedVariant && (
-            <span className="text-xl text-gray-400 line-through">${product.compareAtPrice.toFixed(2)}</span>
+            <span className="text-xl text-gray-400 line-through">{fmt(product.compareAtPrice)}</span>
           )}
         </div>
 
@@ -217,7 +240,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
         <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
            <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
              <Truck className="w-5 h-5 text-brand-green" />
-             <span>{t('product.freeShippingBadge')}</span>
+             <span>{t('product.freeShippingBadge', { amount: freeShippingThreshold })}</span>
            </div>
            <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
              <ShieldCheck className="w-5 h-5 text-brand-green" />

@@ -40,10 +40,49 @@ const mapProduct = (p: any): Product => {
     tags: Array.isArray(p.tags) ? p.tags : [],
     variants: Array.isArray(p.variants) ? p.variants : [],
     metaTitle: p.meta_title,
+    metaTitleKa: p.meta_title_ka,
     metaDescription: p.meta_description,
-    metaKeywords: p.meta_keywords
+    metaDescriptionKa: p.meta_description_ka,
+    metaKeywords: p.meta_keywords,
+    metaKeywordsKa: p.meta_keywords_ka
   };
 };
+
+const emptyToNull = (value?: string) => (value && value.trim() ? value.trim() : null);
+
+// mapProduct substitutes an 'unknown' id when a product has no brand or
+// category row; writing that back would violate the foreign key.
+const refId = (id?: string) => (id && id !== 'unknown' ? id : null);
+
+// Insert and update write the same column set, so the admin form can never
+// silently drop a field depending on which path it took.
+const toRow = (product: Product) => ({
+  name: product.name,
+  name_ka: emptyToNull(product.nameKa),
+  slug: product.slug,
+  description: product.description,
+  description_ka: emptyToNull(product.descriptionKa),
+  price: product.price,
+  compare_at_price: product.compareAtPrice ?? null,
+  inventory_quantity: product.inventoryQuantity,
+  brand_id: refId(product.brand?.id),
+  category_id: refId(product.category?.id),
+  sub_category: emptyToNull(product.subCategory),
+  images: product.images ?? [],
+  variants: product.variants ?? [],
+  video_playback_id: emptyToNull(product.videoPlaybackId),
+  is_new: !!product.isNew,
+  is_trending: !!product.isTrending,
+  average_rating: product.averageRating || 0,
+  review_count: product.reviewCount || 0,
+  tags: product.tags ?? [],
+  meta_title: emptyToNull(product.metaTitle),
+  meta_title_ka: emptyToNull(product.metaTitleKa),
+  meta_description: emptyToNull(product.metaDescription),
+  meta_description_ka: emptyToNull(product.metaDescriptionKa),
+  meta_keywords: emptyToNull(product.metaKeywords),
+  meta_keywords_ka: emptyToNull(product.metaKeywordsKa),
+});
 
 export const ProductService = {
   getAllProducts: async (): Promise<Product[]> => {
@@ -103,25 +142,7 @@ export const ProductService = {
 
   addProduct: async (product: Product): Promise<void> => {
     if (!supabase) throw new Error('Supabase client not initialized');
-    const { error } = await supabase.from('products').insert({
-      name: product.name,
-      name_ka: product.nameKa,
-      slug: product.slug,
-      description: product.description,
-      description_ka: product.descriptionKa,
-      price: product.price,
-      compare_at_price: product.compareAtPrice,
-      inventory_quantity: product.inventoryQuantity,
-      brand_id: product.brand.id,
-      category_id: product.category.id, 
-      sub_category: product.subCategory,
-      images: product.images,
-      is_new: product.isNew,
-      is_trending: product.isTrending,
-      tags: product.tags,
-      average_rating: product.averageRating || 0,
-      review_count: product.reviewCount || 0
-    });
+    const { error } = await supabase.from('products').insert(toRow(product));
     if (error) throw error;
   },
 
@@ -129,19 +150,7 @@ export const ProductService = {
     if (!supabase) throw new Error('Supabase client not initialized');
     const { error } = await supabase
       .from('products')
-      .update({
-        name: product.name,
-        name_ka: product.nameKa,
-        price: product.price,
-        compare_at_price: product.compareAtPrice,
-        inventory_quantity: product.inventoryQuantity,
-        description: product.description,
-        description_ka: product.descriptionKa,
-        category_id: product.category.id,
-        brand_id: product.brand.id,
-        images: product.images,
-        is_trending: product.isTrending
-      })
+      .update(toRow(product))
       .eq('id', product.id);
     if (error) throw error;
   },

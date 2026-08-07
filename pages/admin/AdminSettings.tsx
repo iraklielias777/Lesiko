@@ -31,6 +31,17 @@ export const AdminSettings = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const skinFileInputRef = useRef<HTMLInputElement>(null);
 
+  // Replacing an image leaves the old object in the bucket. It is only removed
+  // once the form is saved, so abandoning an edit cannot delete a live image.
+  const [replacedPromoImages, setReplacedPromoImages] = useState<string[]>([]);
+  const [replacedSkinImages, setReplacedSkinImages] = useState<string[]>([]);
+
+  const purge = async (urls: string[]) => {
+    for (const url of urls) {
+      if (url.includes('supabase.co')) await StorageService.deleteFile(url);
+    }
+  };
+
   useEffect(() => {
     fetchData();
     ContentService.getSkinTypeContent().then(setSkinTypes);
@@ -54,9 +65,24 @@ export const AdminSettings = () => {
       setIsPromoDirty(true);
   };
 
+  const replacePromoImage = (url: string) => {
+      if (promoForm.image && promoForm.image !== url) {
+          setReplacedPromoImages(prev => [...prev, promoForm.image]);
+      }
+      handlePromoChange('image', url);
+  };
+
   const handleSkinTypeChange = (key: string, field: keyof SkinTypeItem, value: any) => {
       setSkinTypes(prev => prev.map(s => s.key === key ? { ...s, [field]: value } : s));
       setIsSkinDirty(true);
+  };
+
+  const replaceSkinImage = (key: string, url: string) => {
+      const previous = skinTypes.find(s => s.key === key)?.image;
+      if (previous && previous !== url) {
+          setReplacedSkinImages(prev => [...prev, previous]);
+      }
+      handleSkinTypeChange(key, 'image', url);
   };
 
   const handlePromoImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,7 +91,7 @@ export const AdminSettings = () => {
           setIsUploading(true);
           try {
               const publicUrl = await StorageService.uploadFile(file, 'content');
-              handlePromoChange('image', publicUrl);
+              replacePromoImage(publicUrl);
               addToast("Promo image updated");
           } catch (err) {
               addToast("Upload failed", "error");
@@ -81,7 +107,7 @@ export const AdminSettings = () => {
           setIsUploading(true);
           try {
               const publicUrl = await StorageService.uploadFile(file, 'content');
-              handleSkinTypeChange(activeSkinUpload, 'image', publicUrl);
+              replaceSkinImage(activeSkinUpload, publicUrl);
               addToast("Skin type image updated");
           } catch (err) {
               addToast("Upload failed", "error");
@@ -97,7 +123,7 @@ export const AdminSettings = () => {
       setIsUploading(true);
       try {
           const publicUrl = await StorageService.uploadFromUrl(remoteUrl, 'content');
-          handlePromoChange('image', publicUrl);
+          replacePromoImage(publicUrl);
           setUrlInputVisible(false);
           setRemoteUrl('');
           addToast("Image fetched and saved");
@@ -114,7 +140,7 @@ export const AdminSettings = () => {
       setIsUploading(true);
       try {
           const publicUrl = await StorageService.uploadFromUrl(url, 'content');
-          handleSkinTypeChange(key, 'image', publicUrl);
+          replaceSkinImage(key, publicUrl);
           addToast("Image updated from URL");
       } catch (err) {
           addToast("Failed to fetch image", "error");
@@ -123,16 +149,22 @@ export const AdminSettings = () => {
       }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
-      updateSettings(formData);
-      addToast(t('admin.savedSuccess'));
-      setIsDirty(false);
+      try {
+          await updateSettings(formData);
+          addToast(t('admin.savedSuccess'));
+          setIsDirty(false);
+      } catch (err) {
+          addToast(err instanceof Error ? err.message : 'Failed to save settings', 'error');
+      }
   };
 
   const handlePromoSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       await updatePromo(promoForm);
+      await purge(replacedPromoImages);
+      setReplacedPromoImages([]);
       addToast(t('admin.savedSuccess'));
       setIsPromoDirty(false);
   };
@@ -140,6 +172,8 @@ export const AdminSettings = () => {
   const handleSkinSubmit = async (e: React.FormEvent) => {
       e.preventDefault();
       await ContentService.updateSkinTypeContent(skinTypes);
+      await purge(replacedSkinImages);
+      setReplacedSkinImages([]);
       addToast(t('admin.savedSuccess'));
       setIsSkinDirty(false);
   };
@@ -157,6 +191,31 @@ export const AdminSettings = () => {
             <h3 className="font-heading font-bold text-lg border-b border-gray-100 pb-2">{t('admin.generalInfo')}</h3>
             <Input label={t('admin.storeName') as string} value={formData.storeName} onChange={e => handleChange('storeName', e.target.value)} />
             <Input label={t('admin.supportEmail') as string} type="email" value={formData.supportEmail} onChange={e => handleChange('supportEmail', e.target.value)} />
+
+            <h3 className="font-heading font-bold text-lg border-b border-gray-100 pb-2 pt-4">Checkout</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+                <Input label="Currency code" value={formData.currency} onChange={e => handleChange('currency', e.target.value)} />
+                <Input
+                    label="Tax rate (%)"
+                    type="number" step="0.1" min="0"
+                    value={(formData.taxRate * 100).toFixed(2).replace(/\.?0+$/, '')}
+                    onChange={e => handleChange('taxRate', Number(e.target.value) / 100)}
+                />
+                <Input
+                    label="Shipping rate"
+                    type="number" step="1" min="0"
+                    value={formData.shippingRate}
+                    onChange={e => handleChange('shippingRate', Number(e.target.value))}
+                />
+                <Input
+                    label="Free shipping over"
+                    type="number" step="1" min="0"
+                    value={formData.freeShippingThreshold}
+                    onChange={e => handleChange('freeShippingThreshold', Number(e.target.value))}
+                />
+            </div>
+            <p className="text-xs text-gray-400">These drive the cart drawer progress bar and the totals on the checkout page. Currency accepts an ISO code such as USD, EUR or GEL.</p>
+
             <div className="pt-6 border-t border-gray-100 flex justify-end">
                 <Button type="submit" disabled={!isDirty} leftIcon={<Save className="w-4 h-4"/>}>{t('admin.saveChanges')}</Button>
             </div>
@@ -250,6 +309,8 @@ export const AdminSettings = () => {
                     </div>
                 </div>
                 <div className="space-y-6">
+                    <Input label="Button text (EN)" value={promoForm.buttonText || ''} onChange={e => handlePromoChange('buttonText', e.target.value)} />
+                    <Input label="Button text (KA)" value={promoForm.buttonTextKa || ''} onChange={e => handlePromoChange('buttonTextKa', e.target.value)} />
                     <Input label={t('admin.buttonLink') as string} value={promoForm.link} onChange={e => handlePromoChange('link', e.target.value)} leftIcon={<LinkIcon className="w-4 h-4 text-gray-400" />} />
                     <div 
                         onClick={() => !isUploading && fileInputRef.current?.click()}
@@ -269,6 +330,27 @@ export const AdminSettings = () => {
                             </div>
                         )}
                     </div>
+                    {urlInputVisible ? (
+                        <div className="flex gap-2">
+                            <input
+                                type="text"
+                                className="flex-1 p-2 border border-gray-200 rounded text-xs outline-none focus:border-brand-green"
+                                placeholder="Paste image URL"
+                                value={remoteUrl}
+                                onChange={e => setRemoteUrl(e.target.value)}
+                            />
+                            <button type="button" onClick={handleFetchFromUrl} disabled={isUploading} className="bg-brand-green text-white text-xs px-3 rounded disabled:opacity-50">Fetch</button>
+                            <button type="button" onClick={() => { setUrlInputVisible(false); setRemoteUrl(''); }} className="bg-gray-200 text-gray-600 text-xs px-3 rounded">Cancel</button>
+                        </div>
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={() => setUrlInputVisible(true)}
+                            className="w-full text-[10px] font-bold text-gray-400 hover:text-brand-green flex items-center justify-center gap-1"
+                        >
+                            <LinkIcon className="w-3 h-3" /> Fetch from URL
+                        </button>
+                    )}
                     <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handlePromoImageUpload} />
                 </div>
             </div>

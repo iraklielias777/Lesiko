@@ -12,8 +12,15 @@ import { Button } from '../components/ui/Button';
 import { ShoppingBag } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
+import { useCategories } from '../lib/use-categories';
+import { categoryLabel } from '../lib/taxonomy';
+import { useFormatPrice } from '../lib/format';
+import { useEntitySeo, useSiteUrl } from '../lib/use-seo';
+import { useSettingsStore } from '../store/settings-store';
+import { NotFoundPage } from './NotFoundPage';
 
 export const ProductDetailPage = () => {
+  const fmt = useFormatPrice();
   const { t, i18n } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const [product, setProduct] = useState<Product | null>(null);
@@ -22,6 +29,14 @@ export const ProductDetailPage = () => {
   
   const addRecentlyViewed = useRecentlyViewedStore((state) => state.addProduct);
   const addItem = useCartStore((state) => state.addItem);
+  const categories = useCategories();
+  const url = useSiteUrl();
+  const currency = useSettingsStore(s => s.settings.currency);
+
+  const categoryLabelFor = (slug: string, fallback: string) => {
+    const category = categories.find(c => c.slug === slug);
+    return category ? categoryLabel(category, i18n.language) : fallback;
+  };
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -41,37 +56,33 @@ export const ProductDetailPage = () => {
     loadProduct();
   }, [slug]);
 
-  if (loading) return <div className="h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-brand-green border-t-transparent rounded-full"></div></div>;
-  if (!product) return <div className="h-screen flex items-center justify-center">Product not found</div>;
-
   // Localization Helpers
   const isKa = i18n.language === 'ka';
-  const displayName = isKa ? (product.nameKa || product.name) : product.name;
-  const rawDescription = isKa ? (product.descriptionKa || product.description) : product.description;
+  const displayName = product ? (isKa ? (product.nameKa || product.name) : product.name) : '';
+  const rawDescription = product ? (isKa ? (product.descriptionKa || product.description) : product.description) : '';
   // Strip HTML tags for meta tags and schema
   const cleanDescription = rawDescription.replace(/<[^>]*>?/gm, '');
 
-  // --- Automatic SEO Generation ---
-  // If product.metaTitle is missing, generate: "Name | Brand"
-  const seoTitle = product.metaTitle || `${displayName} | ${product.brand.name}`;
-  
-  // If product.metaDescription is missing, truncate main description
-  const seoDescription = product.metaDescription || 
-    (cleanDescription.length > 155 ? `${cleanDescription.substring(0, 155).trim()}...` : cleanDescription);
-  
-  // If product.metaKeywords is missing, construct from attributes
-  const seoKeywords = product.metaKeywords 
-    ? product.metaKeywords.split(',').map(k => k.trim())
-    : [
-        displayName, 
-        product.brand.name, 
-        product.category.name, 
-        product.subCategory, 
-        ...(product.tags || [])
-      ].filter((k): k is string => !!k);
+  // Hooks cannot sit behind the loading and not-found returns below, so the SEO
+  // copy is resolved from whatever we have and only rendered once it is real.
+  const seo = useEntitySeo(product || {}, {
+    title: product ? `${displayName} | ${product.brand.name}` : '',
+    description: cleanDescription,
+    keywords: product
+      ? [product.brand.name, product.category.name, product.subCategory, ...(product.tags || [])]
+          .filter(Boolean)
+          .join(', ')
+      : '',
+    image: product?.images.find(img => img.isPrimary)?.url || product?.images[0]?.url
+  });
+
+  if (loading) return <div className="h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-brand-green border-t-transparent rounded-full"></div></div>;
+  if (!product) return <NotFoundPage />;
+
+  const canonicalPath = `/product/${product.slug}`;
 
   // --- JSON-LD Schema Markup ---
-  const structuredData = {
+  const productSchema = {
     "@context": "https://schema.org/",
     "@type": "Product",
     "name": displayName,
@@ -84,8 +95,10 @@ export const ProductDetailPage = () => {
     "sku": product.id,
     "offers": {
       "@type": "Offer",
-      "url": window.location.href,
-      "priceCurrency": "USD",
+      "url": url(canonicalPath),
+      // Hardcoding USD here published a different price to Google than the one
+      // on the page as soon as the store switched currency.
+      "priceCurrency": currency,
       "price": product.price,
       "availability": product.inventoryQuantity > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
       "itemCondition": "https://schema.org/NewCondition"
@@ -97,15 +110,32 @@ export const ProductDetailPage = () => {
     } : undefined
   };
 
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      { "@type": "ListItem", "position": 1, "name": t('common.home'), "item": url('/') },
+      { "@type": "ListItem", "position": 2, "name": t('common.shop'), "item": url('/products') },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": categoryLabelFor(product.category.slug, product.category.name),
+        "item": url(`/category/${product.category.slug}`)
+      },
+      { "@type": "ListItem", "position": 4, "name": displayName, "item": url(canonicalPath) }
+    ]
+  };
+
   return (
     <div className="bg-white min-h-screen pb-24 md:pb-0">
       <SEO 
-        title={seoTitle}
-        description={seoDescription}
-        image={product.images[0]?.url}
-        keywords={seoKeywords}
+        title={seo.title}
+        description={seo.description}
+        image={seo.image}
+        keywords={seo.keywords}
         type="product"
-        structuredData={structuredData}
+        canonicalPath={canonicalPath}
+        structuredData={[productSchema, breadcrumbSchema]}
       />
 
       {/* Breadcrumbs */}
@@ -113,7 +143,7 @@ export const ProductDetailPage = () => {
         <div className="container mx-auto px-4 py-4 text-sm text-gray-500">
           <Link to="/" className="hover:text-brand-green">{t('common.home')}</Link> / 
           <Link to={`/category/${product.category.slug}`} className="hover:text-brand-green mx-1 capitalize">
-            {t(`categories.${product.category.slug}`, product.category.name)}
+            {categoryLabelFor(product.category.slug, product.category.name)}
           </Link> / 
           <span className="text-gray-900 ml-1">{displayName}</span>
         </div>
@@ -145,9 +175,9 @@ export const ProductDetailPage = () => {
             <div className="flex-1">
                 <p className="text-xs text-gray-500 line-clamp-1">{product.brand.name}</p>
                 <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-900 text-lg">${product.price.toFixed(2)}</span>
+                    <span className="font-bold text-gray-900 text-lg">{fmt(product.price)}</span>
                     {product.compareAtPrice && (
-                        <span className="text-xs text-gray-400 line-through">${product.compareAtPrice.toFixed(2)}</span>
+                        <span className="text-xs text-gray-400 line-through">{fmt(product.compareAtPrice)}</span>
                     )}
                 </div>
             </div>

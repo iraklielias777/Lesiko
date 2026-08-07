@@ -1,20 +1,14 @@
 
 import { create } from 'zustand';
-import { Product, Order, User, CategoryHierarchyItem, Brand, PromoContent } from '../types';
+import { Product, Order, User, CategoryHierarchyItem, Brand, PromoContent, StoreSettings } from '../types';
 import { ProductService } from '../services/product-service';
 import { CategoryService } from '../services/category-service';
 import { BrandService } from '../services/brand-service';
-import { ContentService } from '../services/content-service';
+import { ContentService, DEFAULT_STORE_SETTINGS } from '../services/content-service';
 import { OrderService } from '../services/order-service';
 import { supabase } from '../lib/supabase';
-
-interface StoreSettings {
-  storeName: string;
-  supportEmail: string;
-  currency: string;
-  taxRate: number;
-  freeShippingThreshold: number;
-}
+import { invalidateCategories } from '../lib/use-categories';
+import { useSettingsStore } from './settings-store';
 
 interface AdminState {
   products: Product[];
@@ -40,25 +34,23 @@ interface AdminState {
 
   // Brand Actions
   addBrand: (brand: Brand) => Promise<void>;
+  updateBrand: (brand: Brand) => Promise<void>;
   deleteBrand: (id: string) => Promise<void>;
 
   // Order Actions
   updateOrderStatus: (orderId: string, status: Order['status']) => Promise<void>;
+  updatePaymentStatus: (orderId: string, paymentStatus: Order['paymentStatus']) => Promise<void>;
+
+  // Customer Actions
+  updateCustomerRole: (customerId: string, role: User['role']) => Promise<void>;
   
   // Settings Actions
-  updateSettings: (settings: StoreSettings) => void;
+  fetchSettings: () => Promise<void>;
+  updateSettings: (settings: StoreSettings) => Promise<void>;
   
   // Promo Actions
   updatePromo: (content: PromoContent) => Promise<void>;
 }
-
-const DEFAULT_SETTINGS: StoreSettings = {
-  storeName: 'LesiKo Cosmetics',
-  supportEmail: 'support@lesiko.com',
-  currency: 'USD',
-  taxRate: 0.08,
-  freeShippingThreshold: 50
-};
 
 export const useAdminStore = create<AdminState>((set, get) => ({
   products: [],
@@ -66,7 +58,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   brands: [],
   orders: [],
   customers: [],
-  settings: DEFAULT_SETTINGS,
+  settings: DEFAULT_STORE_SETTINGS,
   promoContent: null,
   isLoading: false,
 
@@ -80,21 +72,23 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         if (error) return [];
         return data.map(p => ({
             id: p.id,
-            email: 'Encrypted/Hidden', // Email is in Auth table, usually fetched via separate admin SDK if needed
+            email: p.email || '',
             firstName: p.first_name,
             lastName: p.last_name,
             role: p.role,
-            skinType: p.skin_type
+            skinType: p.skin_type,
+            createdAt: p.created_at
         }));
     };
 
-    const [loadedProducts, loadedCategories, loadedBrands, loadedPromo, loadedOrders, loadedCustomers] = await Promise.all([
+    const [loadedProducts, loadedCategories, loadedBrands, loadedPromo, loadedOrders, loadedCustomers, loadedSettings] = await Promise.all([
         ProductService.getAllProducts(),
         CategoryService.getCategories(),
         BrandService.getBrands(),
         ContentService.getPromoContent(),
         OrderService.getAllOrders(),
-        fetchCustomers()
+        fetchCustomers(),
+        ContentService.getStoreSettings()
     ]);
 
     set({ 
@@ -103,10 +97,14 @@ export const useAdminStore = create<AdminState>((set, get) => ({
         brands: loadedBrands,
         orders: loadedOrders,
         customers: loadedCustomers,
-        settings: DEFAULT_SETTINGS,
+        settings: loadedSettings,
         promoContent: loadedPromo,
         isLoading: false 
     });
+  },
+
+  fetchSettings: async () => {
+    set({ settings: await ContentService.getStoreSettings() });
   },
 
   fetchCategories: async () => {
@@ -116,11 +114,20 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   updateCategories: async (cats) => {
       await CategoryService.saveCategories(cats);
-      set({ categories: cats });
+      // Re-read rather than trusting the payload: saveCategories assigns the
+      // stored ordering, and the storefront cache has to drop its stale copy.
+      invalidateCategories();
+      set({ categories: await CategoryService.getCategories() });
   },
 
   addBrand: async (brand) => {
       await BrandService.addBrand(brand);
+      const brands = await BrandService.getBrands();
+      set({ brands });
+  },
+
+  updateBrand: async (brand) => {
+      await BrandService.updateBrand(brand);
       const brands = await BrandService.getBrands();
       set({ brands });
   },
@@ -158,8 +165,33 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     }));
   },
 
-  updateSettings: (newSettings) => {
+  updatePaymentStatus: async (orderId, paymentStatus) => {
+    await OrderService.updatePaymentStatus(orderId, paymentStatus);
+    set((state) => ({
+      orders: state.orders.map(o => o.id === orderId ? { ...o, paymentStatus } : o)
+    }));
+  },
+
+  updateCustomerRole: async (customerId, role) => {
+    if (!supabase) throw new Error('Supabase client not initialized');
+    // The protect_profile_role trigger allows this only when the caller is
+    // already an admin, so a customer cannot promote themselves via the API.
+    const { error } = await supabase
+      .from('profiles')
+      .update({ role })
+      .eq('id', customerId);
+    if (error) throw error;
+    set((state) => ({
+      customers: state.customers.map(c => c.id === customerId ? { ...c, role } : c)
+    }));
+  },
+
+  updateSettings: async (newSettings) => {
+    await ContentService.updateStoreSettings(newSettings);
     set({ settings: newSettings });
+    // The storefront (and the price columns in this panel) read currency,
+    // tax and shipping from the settings store, which caches on first load.
+    useSettingsStore.setState({ settings: newSettings, isLoaded: true });
   },
 
   updatePromo: async (content) => {

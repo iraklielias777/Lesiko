@@ -1,28 +1,53 @@
 
-import React, { useEffect, useState } from 'react';
-import { Search, Eye, Filter, X, Package, Printer, Download } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Search, Eye, X, Package, Printer, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAdminStore } from '../../store/admin-store';
 import { Button } from '../../components/ui/Button';
+import { Pagination, usePagination } from '../../components/admin/Pagination';
 import { Order } from '../../types';
+import { useFormatPrice } from '../../lib/format';
+import { useToastStore } from '../../store/toast-store';
+
+const paymentBadge = (status: Order['paymentStatus']) => {
+  if (status === 'paid') return 'bg-green-100 text-green-700';
+  if (status === 'failed') return 'bg-red-100 text-red-700';
+  return 'bg-amber-100 text-amber-800';
+};
 
 export const AdminOrders = () => {
+  const fmt = useFormatPrice();
   const { t } = useTranslation();
-  const { fetchData, orders, updateOrderStatus } = useAdminStore();
+  const { fetchData, orders, updateOrderStatus, updatePaymentStatus, isLoading } = useAdminStore();
+  const addToast = useToastStore(s => s.addToast);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | NonNullable<Order['status']>>('all');
+  const [paymentFilter, setPaymentFilter] = useState<'all' | Order['paymentStatus']>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  const filteredOrders = orders.filter(o => 
-    o.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.customerName?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredOrders = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return orders.filter(o => {
+      if (statusFilter !== 'all' && o.status !== statusFilter) return false;
+      if (paymentFilter !== 'all' && o.paymentStatus !== paymentFilter) return false;
+      if (!q) return true;
+      return (
+        o.orderNumber.toLowerCase().includes(q) ||
+        o.id.toLowerCase().includes(q) ||
+        (o.customerName || '').toLowerCase().includes(q) ||
+        (o.shippingAddress?.email || '').toLowerCase().includes(q)
+      );
+    });
+  }, [orders, searchTerm, statusFilter, paymentFilter]);
+
+  const pager = usePagination(filteredOrders, 25, [searchTerm, statusFilter, paymentFilter]);
 
   const handleExport = () => {
-    const csvContent = "data:text/csv;charset=utf-8," 
+    const csvContent = "data:text/csv;charset=utf-8,"
         + "Order ID,Date,Customer,Total,Status,Payment\n"
         + filteredOrders.map(o => `${o.orderNumber},${o.createdAt},${o.customerName},${o.total},${o.status},${o.paymentStatus}`).join("\n");
     const encodedUri = encodeURI(csvContent);
@@ -38,6 +63,24 @@ export const AdminOrders = () => {
       window.print();
   };
 
+  const changeStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      await updateOrderStatus(orderId, status);
+      setSelectedOrder(prev => prev?.id === orderId ? { ...prev, status } : prev);
+    } catch (e: any) {
+      addToast(e?.message || 'Could not update status', 'error');
+    }
+  };
+
+  const changePayment = async (orderId: string, paymentStatus: Order['paymentStatus']) => {
+    try {
+      await updatePaymentStatus(orderId, paymentStatus);
+      setSelectedOrder(prev => prev?.id === orderId ? { ...prev, paymentStatus } : prev);
+    } catch (e: any) {
+      addToast(e?.message || 'Could not update payment', 'error');
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -50,18 +93,49 @@ export const AdminOrders = () => {
         </Button>
       </div>
 
-      <div className="relative max-w-md">
-         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-         <input 
-            type="text" 
-            placeholder={t('common.search')} 
-            className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand-green outline-none"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-         />
+      <div className="flex flex-col sm:flex-row gap-3">
+         <div className="relative flex-1 max-w-md">
+           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+           <input
+              type="text"
+              placeholder={`${t('common.search')} order #, customer, email…`}
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand-green outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+           />
+         </div>
+         <select
+           value={statusFilter}
+           onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}
+           className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-brand-green"
+         >
+           <option value="all">All statuses</option>
+           <option value="Processing">{t('status.Processing')}</option>
+           <option value="Shipped">{t('status.Shipped')}</option>
+           <option value="Delivered">{t('status.Delivered')}</option>
+           <option value="Cancelled">{t('status.Cancelled')}</option>
+         </select>
+         <select
+           value={paymentFilter}
+           onChange={e => setPaymentFilter(e.target.value as typeof paymentFilter)}
+           className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-brand-green"
+         >
+           <option value="all">All payments</option>
+           <option value="pending">Pending</option>
+           <option value="paid">Paid</option>
+           <option value="failed">Failed</option>
+         </select>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+         {isLoading && orders.length === 0 ? (
+           <div className="p-12 text-center text-gray-400 text-sm">Loading orders…</div>
+         ) : filteredOrders.length === 0 ? (
+           <div className="p-12 text-center text-gray-400 text-sm">
+             {orders.length === 0 ? 'No orders yet.' : 'No orders match these filters.'}
+           </div>
+         ) : (
+         <>
          <div className="overflow-x-auto">
              <table className="w-full text-sm text-left">
                 <thead className="bg-gray-50 text-gray-500 font-medium border-b border-gray-100">
@@ -76,21 +150,27 @@ export const AdminOrders = () => {
                    </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredOrders.map(order => (
+                  {pager.pageItems.map(order => (
                     <tr key={order.id} className="hover:bg-gray-50/50">
                       <td className="px-6 py-4 font-bold text-gray-900">#{order.orderNumber}</td>
                       <td className="px-6 py-4 text-gray-500">{order.createdAt}</td>
                       <td className="px-6 py-4 font-medium">{order.customerName}</td>
-                      <td className="px-6 py-4">${order.total.toFixed(2)}</td>
+                      <td className="px-6 py-4">{fmt(order.total)}</td>
                       <td className="px-6 py-4">
-                          <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-bold uppercase">
-                              {order.paymentStatus}
-                          </span>
+                         <select
+                            value={order.paymentStatus}
+                            onChange={(e) => changePayment(order.id, e.target.value as Order['paymentStatus'])}
+                            className={`border-none text-xs font-bold px-2 py-1 rounded-full cursor-pointer outline-none focus:ring-2 focus:ring-brand-green/50 uppercase ${paymentBadge(order.paymentStatus)}`}
+                         >
+                             <option value="pending">pending</option>
+                             <option value="paid">paid</option>
+                             <option value="failed">failed</option>
+                         </select>
                       </td>
                       <td className="px-6 py-4">
-                         <select 
+                         <select
                             value={order.status}
-                            onChange={(e) => updateOrderStatus(order.id, e.target.value as any)}
+                            onChange={(e) => changeStatus(order.id, e.target.value as Order['status'])}
                             className={`border-none text-xs font-bold px-2 py-1 rounded-full cursor-pointer outline-none focus:ring-2 focus:ring-brand-green/50 ${
                                 order.status === 'Delivered' ? 'bg-green-100 text-green-700' :
                                 order.status === 'Processing' ? 'bg-blue-100 text-blue-700' :
@@ -105,7 +185,7 @@ export const AdminOrders = () => {
                          </select>
                       </td>
                       <td className="px-6 py-4 text-right">
-                         <button 
+                         <button
                             onClick={() => setSelectedOrder(order)}
                             className="text-gray-400 hover:text-brand-green transition-colors"
                          >
@@ -117,9 +197,19 @@ export const AdminOrders = () => {
                 </tbody>
              </table>
          </div>
+         <Pagination
+           page={pager.page}
+           pageCount={pager.pageCount}
+           total={pager.total}
+           firstIndex={pager.firstIndex}
+           lastIndex={pager.lastIndex}
+           onChange={pager.setPage}
+           noun="orders"
+         />
+         </>
+         )}
       </div>
 
-      {/* Order Details Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 print:p-0">
             <div className="absolute inset-0 bg-black/50 backdrop-blur-sm print:hidden" onClick={() => setSelectedOrder(null)} />
@@ -132,13 +222,12 @@ export const AdminOrders = () => {
                     <button onClick={() => setSelectedOrder(null)}><X className="w-5 h-5 text-gray-500" /></button>
                 </div>
 
-                {/* Print Header */}
                 <div className="hidden print:block p-8 pb-0">
                     <h1 className="text-2xl font-bold mb-2">{t('account.invoice')}</h1>
                     <p>{t('admin.orderId')} #{selectedOrder.orderNumber}</p>
                     <p>{selectedOrder.createdAt}</p>
                 </div>
-                
+
                 <div className="p-6 overflow-y-auto print:overflow-visible">
                     <div className="grid grid-cols-2 gap-6 mb-8">
                         <div className="bg-gray-50 p-4 rounded-lg print:bg-white print:border print:border-gray-200">
@@ -146,10 +235,20 @@ export const AdminOrders = () => {
                                 <Package className="w-4 h-4 text-brand-green print:hidden" /> {t('account.shippingDetails')}
                             </h3>
                             <p className="text-sm text-gray-600">
-                                {selectedOrder.customerName}<br />
-                                123 Mock Street<br />
-                                Los Angeles, CA 90210<br />
-                                United States
+                                {[
+                                    selectedOrder.customerName,
+                                    selectedOrder.shippingAddress?.address1,
+                                    selectedOrder.shippingAddress?.address2,
+                                    [
+                                        selectedOrder.shippingAddress?.city,
+                                        selectedOrder.shippingAddress?.state,
+                                        selectedOrder.shippingAddress?.zip,
+                                    ].filter(Boolean).join(', '),
+                                    selectedOrder.shippingAddress?.country,
+                                    selectedOrder.shippingAddress?.email,
+                                ]
+                                    .filter(Boolean)
+                                    .map((line, i) => <React.Fragment key={i}>{line}<br /></React.Fragment>)}
                             </p>
                         </div>
                         <div className="bg-gray-50 p-4 rounded-lg print:bg-white print:border print:border-gray-200">
@@ -157,19 +256,19 @@ export const AdminOrders = () => {
                             <div className="space-y-1 text-sm">
                                 <div className="flex justify-between">
                                     <span className="text-gray-600">{t('common.subtotal')}:</span>
-                                    <span>${selectedOrder.subtotal.toFixed(2)}</span>
+                                    <span>{fmt(selectedOrder.subtotal)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-600">{t('common.shipping')}:</span>
-                                    <span>${selectedOrder.shipping.toFixed(2)}</span>
+                                    <span>{fmt(selectedOrder.shipping)}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-gray-600">{t('common.tax')}:</span>
-                                    <span>${selectedOrder.tax.toFixed(2)}</span>
+                                    <span>{fmt(selectedOrder.tax)}</span>
                                 </div>
                                 <div className="flex justify-between font-bold border-t border-gray-200 pt-1 mt-1">
                                     <span>{t('common.total')}:</span>
-                                    <span>${selectedOrder.total.toFixed(2)}</span>
+                                    <span>{fmt(selectedOrder.total)}</span>
                                 </div>
                             </div>
                         </div>
@@ -177,17 +276,28 @@ export const AdminOrders = () => {
 
                     <h3 className="font-bold text-gray-900 mb-4">{t('common.items')}</h3>
                     <div className="space-y-3">
-                         {/* Mock Items Logic */}
-                         <div className="flex items-center gap-4 border border-gray-100 p-3 rounded-lg print:border-0 print:p-0 print:mb-2">
-                             <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden print:hidden">
-                                 <img src="https://images.unsplash.com/photo-1620916566398-39f1143ab7be?auto=format&fit=crop&q=80&w=200" alt="" className="w-full h-full object-cover" />
+                         {selectedOrder.items.length === 0 && (
+                             <p className="text-sm text-gray-400">No line items recorded for this order.</p>
+                         )}
+                         {selectedOrder.items.map(item => (
+                             <div key={item.id} className="flex items-center gap-4 border border-gray-100 p-3 rounded-lg print:border-0 print:p-0 print:mb-2">
+                                 <div className="w-12 h-12 bg-gray-100 rounded overflow-hidden print:hidden">
+                                     {item.product.images?.[0]?.url && (
+                                         <img src={item.product.images[0].url} alt="" className="w-full h-full object-cover" />
+                                     )}
+                                 </div>
+                                 <div className="flex-1">
+                                     <p className="font-medium text-gray-900">
+                                         {item.product.name}
+                                         {item.selectedVariant && (
+                                             <span className="text-gray-500 font-normal"> · {item.selectedVariant.name}</span>
+                                         )}
+                                     </p>
+                                     <p className="text-xs text-gray-500">{t('product.qty')}: {item.quantity}</p>
+                                 </div>
+                                 <span className="font-medium">{fmt(item.product.price * item.quantity)}</span>
                              </div>
-                             <div className="flex-1">
-                                 <p className="font-medium text-gray-900">Hydra-Glow Vitamin C Serum</p>
-                                 <p className="text-xs text-gray-500">{t('product.qty')}: 1</p>
-                             </div>
-                             <span className="font-medium">$45.00</span>
-                         </div>
+                         ))}
                     </div>
                 </div>
 

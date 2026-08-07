@@ -3,9 +3,10 @@ import React, { useState, useEffect } from 'react';
 import { Minus, Plus } from 'lucide-react';
 import { Checkbox } from '../ui/Checkbox';
 import { SearchFilters, Facet } from '../../services/search-service';
-import { CategoryService } from '../../services/category-service';
-import { CategoryHierarchyItem } from '../../types';
+import { useCategories } from '../../lib/use-categories';
+import { categoryLabel, subLabel } from '../../lib/taxonomy';
 import { useTranslation } from 'react-i18next';
+import { useCurrencySymbol } from '../../lib/format';
 
 interface ProductFiltersProps {
   filters: SearchFilters;
@@ -28,7 +29,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
   onClear,
   className = ''
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['categories', 'brands', 'price', 'skinTypes'])
   );
@@ -37,12 +38,8 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
     new Set(filters.categories || [])
   );
   
-  const [categoryHierarchy, setCategoryHierarchy] = useState<CategoryHierarchyItem[]>([]);
-
-  // Fetch dynamic categories on mount
-  useEffect(() => {
-    CategoryService.getCategories().then(setCategoryHierarchy);
-  }, []);
+  const categoryHierarchy = useCategories();
+  const symbol = useCurrencySymbol();
 
   // Auto-expand categories when selections change (e.g. from URL params or manual select)
   useEffect(() => {
@@ -55,8 +52,8 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
     
     // If a subcategory is selected, ensure its parent is expanded
     if (filters.subCategories && filters.subCategories.length > 0 && categoryHierarchy.length > 0) {
-        filters.subCategories.forEach(sub => {
-            const parent = categoryHierarchy.find(c => c.subs.includes(sub));
+        filters.subCategories.forEach(subSlug => {
+            const parent = categoryHierarchy.find(c => c.subs.some(s => s.slug === subSlug));
             if (parent) newExpanded.add(parent.slug);
         });
     }
@@ -97,12 +94,12 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
     onFilterChange({ ...filters, categories: newCats });
   };
 
-  const handleSubCategoryChange = (subName: string, checked: boolean) => {
+  const handleSubCategoryChange = (subSlug: string, checked: boolean) => {
     let newSubs = filters.subCategories || [];
     if (checked) {
-      newSubs = [...newSubs, subName];
+      newSubs = [...newSubs, subSlug];
     } else {
-      newSubs = newSubs.filter(s => s !== subName);
+      newSubs = newSubs.filter(s => s !== subSlug);
     }
     onFilterChange({ ...filters, subCategories: newSubs });
   };
@@ -153,7 +150,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
                const isExpanded = expandedCategories.has(cat.slug);
                const isChecked = filters.categories?.includes(cat.slug) || false;
                const availableSubs = facets.subCategories[cat.slug] || [];
-               const translatedLabel = t(`categories.${cat.slug}`, cat.label);
+               const translatedLabel = categoryLabel(cat, i18n.language);
 
                return (
                  <div key={cat.slug} className="group">
@@ -181,16 +178,16 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
                        ml-5 space-y-2 border-l border-gray-100 pl-4 py-1 overflow-hidden transition-all duration-300 ease-in-out
                        ${isExpanded ? 'max-h-[500px] opacity-100 mt-2' : 'max-h-0 opacity-0 mt-0'}
                    `}>
-                       {cat.subs.map(subName => {
-                         const subFacet = availableSubs.find(s => s.value === subName);
+                       {cat.subs.map(sub => {
+                         const subFacet = availableSubs.find(s => s.value === sub.slug);
                          const subCount = subFacet?.count || 0;
-                         
+
                          return (
-                           <div key={subName} className="flex justify-between items-center group/sub">
+                           <div key={sub.slug} className="flex justify-between items-center group/sub">
                             <Checkbox
-                                label={t(`subCategories.${subName}`, subName)}
-                                checked={filters.subCategories?.includes(subName) || false}
-                                onChange={(c) => handleSubCategoryChange(subName, c)}
+                                label={subLabel(sub, i18n.language)}
+                                checked={filters.subCategories?.includes(sub.slug) || false}
+                                onChange={(c) => handleSubCategoryChange(sub.slug, c)}
                             />
                             <span className="text-[10px] text-gray-300 group-hover/sub:text-gray-500">{subCount}</span>
                            </div>
@@ -252,7 +249,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
            <div className="mt-4 space-y-4">
              <div className="flex items-center gap-3">
                <div className="relative flex-1">
-                 <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
+                 <span className="absolute left-3 top-2.5 text-gray-400 text-sm">{symbol}</span>
                  <input 
                    type="number" 
                    min={0}
@@ -264,7 +261,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
                </div>
                <span className="text-gray-300">—</span>
                <div className="relative flex-1">
-                 <span className="absolute left-3 top-2.5 text-gray-400 text-sm">$</span>
+                 <span className="absolute left-3 top-2.5 text-gray-400 text-sm">{symbol}</span>
                  <input 
                    type="number" 
                    min={0}

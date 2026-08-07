@@ -1,6 +1,7 @@
 
 import { Product } from '../types';
 import { ProductService } from './product-service';
+import { ContentService } from './content-service';
 
 export interface SearchFilters {
   query?: string;
@@ -36,14 +37,19 @@ export interface SearchResults {
 
 export interface QuickSearchResults {
   products: Product[];
-  categories: { name: string; slug: string; type: 'category' | 'subcategory' }[];
+  // For a subcategory hit, `slug` is the parent category and `subSlug` the
+  // sub-category, since a link needs both.
+  categories: { name: string; slug: string; subSlug?: string; type: 'category' | 'subcategory' }[];
   brands: { name: string; slug: string }[];
 }
 
 export const SearchService = {
   async search(filters: SearchFilters): Promise<SearchResults> {
-    const allProducts = await ProductService.getAllProducts();
-    
+    const [allProducts, skinTypeContent] = await Promise.all([
+      ProductService.getAllProducts(),
+      ContentService.getSkinTypeContent(),
+    ]);
+
     if (!allProducts || allProducts.length === 0) {
       return {
         products: [],
@@ -63,6 +69,11 @@ export const SearchService = {
 
       if (filters.categories && filters.categories.length > 0) {
         if (!filters.categories.includes(product.category.slug)) return false;
+      }
+
+      if (filters.subCategories && filters.subCategories.length > 0) {
+        if (!product.subCategory) return false;
+        if (!filters.subCategories.includes(product.subCategory)) return false;
       }
 
       if (filters.brands && filters.brands.length > 0) {
@@ -115,14 +126,16 @@ export const SearchService = {
         return { label: p?.category.name || slug, value: slug, count: categoryCounts[slug] };
     });
 
+    // Keyed by sub-category slug; the sidebar resolves display labels from the
+    // category hierarchy, so only the count is consumed here.
     const subCategories: Record<string, Facet[]> = {};
     categories.forEach(cat => {
         const productsInCat = allProducts.filter(p => p.category.slug === cat.value);
         const subCounts = getCounts(productsInCat, p => p.subCategory);
-        subCategories[cat.value] = Object.keys(subCounts).map(subName => ({
-            label: subName,
-            value: subName,
-            count: subCounts[subName]
+        subCategories[cat.value] = Object.keys(subCounts).map(subSlug => ({
+            label: subSlug,
+            value: subSlug,
+            count: subCounts[subSlug]
         }));
     });
 
@@ -131,6 +144,18 @@ export const SearchService = {
         const p = allProducts.find(p => p.brand.slug === slug);
         return { label: p?.brand.name || slug, value: slug, count: brandCounts[slug] };
     });
+
+    // A product declares its skin type through a tag, so the facet is the set
+    // of configured skin types that at least one product actually carries.
+    const skinTypes: Facet[] = skinTypeContent
+      .map(type => {
+        const key = type.key.toLowerCase();
+        const count = allProducts.filter(p =>
+          p.tags?.some(tag => tag.toLowerCase() === key)
+        ).length;
+        return { label: type.name, value: type.key, count };
+      })
+      .filter(facet => facet.count > 0);
 
     const prices = allProducts.map(p => p.price);
     const minPrice = prices.length ? Math.floor(Math.min(...prices)) : 0;
@@ -143,7 +168,7 @@ export const SearchService = {
         categories,
         subCategories,
         brands,
-        skinTypes: [],
+        skinTypes,
         priceRange: { min: minPrice, max: maxPrice }
       }
     };

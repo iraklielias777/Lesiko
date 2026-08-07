@@ -8,9 +8,16 @@ import { Button } from '../components/ui/Button';
 import { Product } from '../types';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
+import { useCategories } from '../lib/use-categories';
+import { categoryLabel } from '../lib/taxonomy';
+import { useFormatPrice } from '../lib/format';
+import { usePageSeo } from '../lib/use-seo';
 
 export const WishlistPage = () => {
-  const { t } = useTranslation();
+  const fmt = useFormatPrice();
+  const { t, i18n } = useTranslation();
+  const categories = useCategories();
+  const seo = usePageSeo('wishlist', { title: t('wishlist.title') });
   const { items, savedItems, removeItem, moveToSaved, moveToWishlist, removeFromSaved } = useWishlistStore();
   const addItemToCart = useCartStore(state => state.addItem);
   const [activeTab, setActiveTab] = useState<'wishlist' | 'saved'>('wishlist');
@@ -34,7 +41,7 @@ export const WishlistPage = () => {
                         </Link>
                         <p className="text-sm text-gray-500 mb-1">{product.brand.name}</p>
                     </div>
-                    <span className="font-bold text-gray-900 text-lg">${product.price.toFixed(2)}</span>
+                    <span className="font-bold text-gray-900 text-lg">{fmt(product.price)}</span>
                 </div>
                 {product.inventoryQuantity === 0 ? (
                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-gray-100 text-gray-500 mt-1">
@@ -88,7 +95,7 @@ export const WishlistPage = () => {
 
   return (
     <div className="min-h-screen bg-[#FAFAF9] pb-20">
-      <SEO title={t('wishlist.title')} />
+      <SEO title={seo.title} description={seo.description} noindex={seo.noindex} canonicalPath="/wishlist" />
       
       <div className="bg-white border-b border-gray-200 mb-8 sticky top-[72px] z-30 shadow-sm transition-all duration-300">
         <div className="container mx-auto px-4 py-6">
@@ -146,8 +153,11 @@ export const WishlistPage = () => {
                         {/* Categories Quick Links */}
                         <div className="mt-12 flex flex-wrap justify-center gap-4 text-sm font-medium text-gray-600">
                             <span>{t('wishlist.popular')}</span>
-                            <Link to="/category/face-care" className="hover:text-brand-green underline decoration-transparent hover:decoration-brand-green underline-offset-4 transition-all">{t('categories.face-care')}</Link>
-                            <Link to="/category/decorative-cosmetics" className="hover:text-brand-green underline decoration-transparent hover:decoration-brand-green underline-offset-4 transition-all">{t('categories.decorative-cosmetics')}</Link>
+                            {categories.slice(0, 2).map(cat => (
+                                <Link key={cat.slug} to={`/category/${cat.slug}`} className="hover:text-brand-green underline decoration-transparent hover:decoration-brand-green underline-offset-4 transition-all">
+                                    {categoryLabel(cat, i18n.language)}
+                                </Link>
+                            ))}
                             <Link to="/sale" className="text-red-500 hover:text-red-600 underline decoration-transparent hover:decoration-red-200 underline-offset-4 transition-all">{t('common.sale')}</Link>
                         </div>
                     </div>

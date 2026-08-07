@@ -1,16 +1,26 @@
-
 import { createClient } from '@supabase/supabase-js';
 
-// Configuration
-const supabaseUrl = 'https://lmuoxqkmecppwndnfsve.supabase.co';
-const supabaseAnonKey = 'sb_publishable_hCH_0fNZNUTvAgqIHnxKlw_qhuw0vZF';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabasePublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-const isConfigured = !!supabaseUrl && !!supabaseAnonKey;
+const isConfigured = !!supabaseUrl && !!supabasePublishableKey;
 
 if (!isConfigured) {
-  console.warn('Supabase credentials missing. Some features will not work.');
+  console.error(
+    'Supabase is not configured. Copy .env.example to .env.local and set ' +
+    'VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, then restart the dev server.'
+  );
 }
 
-export const supabase = isConfigured 
-  ? createClient(supabaseUrl, supabaseAnonKey) 
+export const SUPABASE_URL: string = supabaseUrl ?? '';
+export const SUPABASE_PUBLISHABLE_KEY: string = supabasePublishableKey ?? '';
+
+export const supabase = isConfigured
+  ? createClient(supabaseUrl, supabasePublishableKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   : (null as any);

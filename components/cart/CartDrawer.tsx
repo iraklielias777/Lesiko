@@ -3,18 +3,23 @@ import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { X, Minus, Plus, ShoppingBag, ArrowRight, Tag, Truck, Check } from 'lucide-react';
 import { useCartStore } from '../../store/cart-store';
+import { useSettingsStore } from '../../store/settings-store';
 import { Button } from '../ui/Button';
 import { useTranslation } from 'react-i18next';
+import { useFormatPrice } from '../../lib/format';
 
 export const CartDrawer = () => {
+  const fmt = useFormatPrice();
   const { t } = useTranslation();
   const { items, isOpen, toggleCart, updateQuantity, removeItem, getSubtotal } = useCartStore();
+  const freeShippingThreshold = useSettingsStore(s => s.settings.freeShippingThreshold);
   const navigate = useNavigate();
 
-  const FREE_SHIPPING_THRESHOLD = 50;
   const subtotal = getSubtotal();
-  const awayFromFreeShipping = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
-  const progressPercent = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+  const awayFromFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
+  const progressPercent = freeShippingThreshold > 0
+    ? Math.min(100, (subtotal / freeShippingThreshold) * 100)
+    : 100;
 
   if (!isOpen) return null;
 
@@ -56,7 +61,7 @@ export const CartDrawer = () => {
                                 <div className="w-6 h-6 rounded-full bg-brand-green/10 flex items-center justify-center text-brand-green">
                                     <Truck className="w-3.5 h-3.5" />
                                 </div>
-                                <span>You're <span className="text-brand-green">${awayFromFreeShipping.toFixed(2)}</span> away from free shipping!</span>
+                                <span>You're <span className="text-brand-green">{fmt(awayFromFreeShipping)}</span> away from free shipping!</span>
                             </>
                         ) : (
                             <>
@@ -162,7 +167,7 @@ export const CartDrawer = () => {
                       </div>
                       
                       <div className="text-right">
-                         <p className="font-bold text-gray-900 mb-1">${(displayPrice * item.quantity).toFixed(2)}</p>
+                         <p className="font-bold text-gray-900 mb-1">{fmt(displayPrice * item.quantity)}</p>
                          <button 
                           onClick={() => removeItem(item.id)}
                           className="text-xs text-red-400 hover:text-red-600 underline decoration-red-200/50 underline-offset-2 hover:decoration-red-600 transition-all"
@@ -182,7 +187,7 @@ export const CartDrawer = () => {
           <div className="p-6 border-t border-gray-100 bg-gray-50/80 backdrop-blur-md shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative z-20">
             <div className="flex justify-between items-center mb-2">
               <span className="text-gray-600 font-medium">{t('cart.subtotal')}</span>
-              <span className="font-heading font-bold text-xl">${subtotal.toFixed(2)}</span>
+              <span className="font-heading font-bold text-xl">{fmt(subtotal)}</span>
             </div>
             <p className="text-xs text-gray-500 mb-6 text-center">Shipping, taxes, and discounts calculated at checkout.</p>
             <Link to="/checkout" onClick={toggleCart}>

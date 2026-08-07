@@ -6,25 +6,28 @@ import { useTranslation } from 'react-i18next';
 import { useCartStore } from '../../store/cart-store';
 import { useAuthStore } from '../../store/auth-store';
 import { AuthService } from '../../services/auth-service';
-import { CategoryService } from '../../services/category-service';
-import { CategoryHierarchyItem } from '../../types';
 import { SearchOverlay } from '../search/SearchOverlay';
+import { useSettingsStore } from '../../store/settings-store';
+import { useCategories } from '../../lib/use-categories';
+import { categoryLabel } from '../../lib/taxonomy';
+import { splitWordmark } from '../../lib/wordmark';
 
 export const Header = () => {
   const { t, i18n } = useTranslation();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSearchOverlayOpen, setIsSearchOverlayOpen] = useState(false);
-  const [categories, setCategories] = useState<CategoryHierarchyItem[]>([]);
+  const categories = useCategories();
   
   const { toggleCart, getTotalItems } = useCartStore();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const freeShippingThreshold = useSettingsStore(s => s.settings.freeShippingThreshold);
+  const storeName = useSettingsStore(s => s.settings.storeName);
+  const [wordmarkHead, wordmarkTail] = splitWordmark(storeName);
   const navigate = useNavigate();
   const cartCount = getTotalItems();
 
   useEffect(() => {
-    CategoryService.getCategories().then(setCategories);
-
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 10);
     };
@@ -66,8 +69,12 @@ export const Header = () => {
       <SearchOverlay isOpen={isSearchOverlayOpen} onClose={() => setIsSearchOverlayOpen(false)} />
       <div className="bg-brand-dark text-white text-[11px] uppercase tracking-widest py-2.5 px-4 text-center sm:text-left relative z-50">
         <div className="container mx-auto flex justify-between items-center">
-          <p className="font-medium hidden sm:block opacity-90">{t('common.freeShipping')}</p>
-          <p className="font-medium sm:hidden opacity-90">{t('product.freeShippingBadge')}</p>
+          <p className="font-medium hidden sm:block opacity-90">
+            {t('common.freeShipping', { amount: freeShippingThreshold })}
+          </p>
+          <p className="font-medium sm:hidden opacity-90">
+            {t('product.freeShippingBadge', { amount: freeShippingThreshold })}
+          </p>
           <div className="flex items-center gap-6">
              <button onClick={toggleLanguage} className="flex items-center gap-1 hover:text-brand-green transition-colors font-bold cursor-pointer">
                 <Globe className="w-3 h-3" /> {currentLang === 'ka' ? 'EN' : 'KA'}
@@ -87,7 +94,7 @@ export const Header = () => {
                 <Menu className="w-6 h-6" />
               </button>
               <Link to="/" className="flex items-center group">
-                <span className="font-heading font-bold text-2xl md:text-3xl tracking-tighter text-brand-dark">Lesi<span className="text-brand-green">Ko</span>.</span>
+                <span className="font-heading font-bold text-2xl md:text-3xl tracking-tighter text-brand-dark">{wordmarkHead}<span className="text-brand-green">{wordmarkTail}</span>.</span>
               </Link>
             </div>
             <div className="flex items-center justify-end flex-1 ml-4 lg:ml-12 relative">
@@ -98,7 +105,7 @@ export const Header = () => {
                 </Link>
                 {displayCategories.map((cat) => (
                   <Link key={cat.slug} to={`/category/${cat.slug}`} className="text-[13px] uppercase tracking-wider font-semibold text-gray-800 hover:text-brand-green transition-colors relative group py-2">
-                    {t(`categories.${cat.slug}`, cat.label)}
+                    {categoryLabel(cat, i18n.language)}
                     <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-brand-green transition-all duration-300 group-hover:w-full" />
                   </Link>
                 ))}
@@ -132,7 +139,7 @@ export const Header = () => {
                 <Link to="/products" className="flex items-center justify-between text-lg font-medium text-gray-800 py-4 border-b border-gray-50" onClick={() => setIsMobileMenuOpen(false)}>{t('common.shopAll')}<ChevronRight className="w-5 h-5 text-gray-300" /></Link>
                 {categories.map((cat) => (
                   <Link key={cat.slug} to={`/category/${cat.slug}`} className="flex items-center justify-between text-lg font-medium text-gray-800 py-4 border-b border-gray-50" onClick={() => setIsMobileMenuOpen(false)}>
-                    {t(`categories.${cat.slug}`, cat.label)}
+                    {categoryLabel(cat, i18n.language)}
                     <ChevronRight className="w-5 h-5 text-gray-300" />
                   </Link>
                 ))}

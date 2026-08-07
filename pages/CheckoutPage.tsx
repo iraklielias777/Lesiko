@@ -4,19 +4,23 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldCheck, Lock, CreditCard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCartStore } from '../store/cart-store';
+import { useSettingsStore, calculateTotals } from '../store/settings-store';
 import { Button } from '../components/ui/Button';
 import { OrderSummary } from '../components/checkout/OrderSummary';
 import { PaymentService } from '../services/payment-service';
 import { OrderService } from '../services/order-service';
 import { Address, Order } from '../types';
 import { SEO } from '../components/seo/SEO';
+import { useFormatPrice } from '../lib/format';
 
 type CheckoutStep = 'shipping' | 'payment';
 
 export const CheckoutPage = () => {
+  const fmt = useFormatPrice();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { items, getSubtotal, clearCart } = useCartStore();
+  const settings = useSettingsStore(s => s.settings);
   const [step, setStep] = useState<CheckoutStep>('shipping');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,11 +30,8 @@ export const CheckoutPage = () => {
     email: '', firstName: '', lastName: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'US'
   });
   
-  // Calculated Totals (Mock)
   const subtotal = getSubtotal();
-  const shipping = subtotal > 50 ? 0 : 15;
-  const tax = subtotal * 0.08;
-  const total = subtotal + shipping + tax;
+  const { shipping, tax, total } = calculateTotals(subtotal, settings);
 
   useEffect(() => {
     if (items.length === 0) {
@@ -51,7 +52,7 @@ export const CheckoutPage = () => {
 
     try {
       // 1. Create Payment Intent (Mock)
-      const intent = await PaymentService.createPaymentIntent(items, address);
+      const intent = await PaymentService.createPaymentIntent(items, address, { subtotal, shipping, tax, total });
       
       // 2. Confirm Payment (Mock)
       const result = await PaymentService.confirmPayment(intent.orderId, {});
@@ -283,7 +284,7 @@ export const CheckoutPage = () => {
                      size="lg" 
                      isLoading={isLoading}
                    >
-                     {t('checkout.pay')} ${total.toFixed(2)}
+                     {t('checkout.pay')} {fmt(total)}
                    </Button>
                 </div>
               </div>
