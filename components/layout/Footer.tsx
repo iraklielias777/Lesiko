@@ -14,6 +14,7 @@ export const Footer = () => {
   const { t, i18n } = useTranslation();
   const categories = useCategories();
   const storeName = useSettingsStore(s => s.settings.storeName);
+  const supportEmail = useSettingsStore(s => s.settings.supportEmail);
   const [content, setContent] = useState<FooterContent | null>(null);
 
   useEffect(() => {
@@ -81,29 +82,35 @@ export const Footer = () => {
               <li><Link to="/help" className="hover:text-brand-green transition-colors">FAQs</Link></li>
               <li><Link to="/help" className="hover:text-brand-green transition-colors">{t('checkout.shipping')}</Link></li>
               <li><Link to="/help" className="hover:text-brand-green transition-colors">Contact Us</Link></li>
-              <li><Link to="/account/orders" className="hover:text-brand-green transition-colors">{t('product.trackPackage')}</Link></li>
+              <li><Link to="/track-order" className="hover:text-brand-green transition-colors">{t('product.trackPackage')}</Link></li>
               <li><Link to="/account" className="hover:text-brand-green transition-colors">{t('common.myAccount')}</Link></li>
             </ul>
           </div>
 
-          {/* Newsletter */}
+          {/* Stay in touch — real mailto only (no fake subscribe form). */}
           <div>
             <h4 className="font-heading font-semibold text-lg mb-6">
-              {pick(content?.newsletterTitle, content?.newsletterTitleKa)}
+              {pick(content?.newsletterTitle, content?.newsletterTitleKa) || 'Stay in touch'}
             </h4>
             <p className="text-gray-400 text-sm mb-4">
-              {pick(content?.newsletterText, content?.newsletterTextKa)}
+              {pick(content?.newsletterText, content?.newsletterTextKa) ||
+                'Questions about an order or the catalogue? Email support and we will help.'}
             </p>
-            <form className="flex flex-col gap-2">
-              <input 
-                type="email" 
-                placeholder={t('checkout.email')} 
-                className="bg-gray-800 border-none text-white px-4 py-3 rounded focus:ring-2 focus:ring-brand-green outline-none"
-              />
-              <button className="bg-brand-green text-white font-medium py-3 rounded hover:bg-[#9BC12A] transition-colors">
-                Subscribe
-              </button>
-            </form>
+            {supportEmail ? (
+              <a
+                href={`mailto:${supportEmail}?subject=${encodeURIComponent(`${storeName} enquiry`)}`}
+                className="inline-block bg-brand-green text-white font-medium py-3 px-5 rounded hover:bg-[#9BC12A] transition-colors text-sm"
+              >
+                Email {supportEmail}
+              </a>
+            ) : (
+              <Link
+                to="/help"
+                className="inline-block bg-brand-green text-white font-medium py-3 px-5 rounded hover:bg-[#9BC12A] transition-colors text-sm"
+              >
+                Contact support
+              </Link>
+            )}
           </div>
         </div>
 
@@ -111,7 +118,6 @@ export const Footer = () => {
           <p>&copy; {new Date().getFullYear()} {storeName}. All rights reserved.</p>
           <div className="flex gap-6 mt-4 md:mt-0">
             <Link to="/help" className="hover:text-white">Support</Link>
-            <Link to="/admin" className="hover:text-white">Admin Login</Link>
           </div>
         </div>
       </div>

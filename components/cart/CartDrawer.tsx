@@ -189,7 +189,7 @@ export const CartDrawer = () => {
               <span className="text-gray-600 font-medium">{t('cart.subtotal')}</span>
               <span className="font-heading font-bold text-xl">{fmt(subtotal)}</span>
             </div>
-            <p className="text-xs text-gray-500 mb-6 text-center">Shipping, taxes, and discounts calculated at checkout.</p>
+            <p className="text-xs text-gray-500 mb-6 text-center">Shipping and taxes calculated at checkout.</p>
             <Link to="/checkout" onClick={toggleCart}>
                <Button className="w-full shadow-xl shadow-brand-green/20" size="lg" rightIcon={<ArrowRight className="w-4 h-4" />}>
                  {t('cart.proceedToCheckout')}

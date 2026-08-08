@@ -35,6 +35,8 @@ const mapOrder = (o: any): Order => ({
     tax: Number(o.tax),
     total: Number(o.total),
     createdAt: new Date(o.created_at).toISOString().split('T')[0],
+    flittOrderId: o.flitt_order_id || undefined,
+    flittPaymentId: o.flitt_payment_id || undefined,
 });
 
 export const OrderService = {
@@ -67,14 +69,29 @@ export const OrderService = {
         return (data || []).map(mapOrder);
     },
 
-    createOrder: async (order: Order): Promise<string> => {
+    getOrderById: async (orderId: string): Promise<Order | null> => {
+        if (!supabase) return null;
+        const { data, error } = await supabase
+            .from('orders')
+            .select(ORDER_SELECT)
+            .eq('id', orderId)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error fetching order:', error);
+            return null;
+        }
+        return data ? mapOrder(data) : null;
+    },
+
+    createOrder: async (order: Order): Promise<{ orderId: string; publicToken: string }> => {
         if (!supabase) throw new Error('Supabase not initialized');
 
-        // The id is generated here rather than read back from the insert:
-        // guest checkout runs on the anon key, which can insert an order but
-        // cannot select one (the read policy matches on the signed-in email),
-        // so a RETURNING clause would come back empty.
+        // Id + public_token are generated client-side: guest checkout uses the
+        // anon key, which can insert but cannot SELECT the row back (read policy
+        // matches signed-in email), so RETURNING would come back empty.
         const orderId = crypto.randomUUID();
+        const publicToken = crypto.randomUUID();
 
         const { error: orderError } = await supabase
             .from('orders')
@@ -84,12 +101,16 @@ export const OrderService = {
                 customer_email: order.shippingAddress.email,
                 customer_name: order.customerName,
                 shipping_address: order.shippingAddress,
-                payment_status: order.paymentStatus,
-                status: order.status,
+                // RLS only allows pending inserts; payment is set by the edge callback.
+                payment_status: 'pending',
+                status: 'Processing',
                 subtotal: order.subtotal,
                 shipping: order.shipping,
                 tax: order.tax,
-                total: order.total
+                total: order.total,
+                public_token: publicToken,
+                // Flitt receives this as order_id; keep it identical to order_number.
+                flitt_order_id: order.flittOrderId || order.orderNumber,
             });
 
         if (orderError) throw orderError;
@@ -111,7 +132,7 @@ export const OrderService = {
             if (itemsError) throw itemsError;
         }
 
-        return orderId;
+        return { orderId, publicToken };
     },
 
     updateStatus: async (orderId: string, status: Order['status']): Promise<void> => {

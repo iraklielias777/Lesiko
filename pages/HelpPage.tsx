@@ -1,9 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Mail, Phone, Clock, Send, CheckCircle, Package, RefreshCw, ShoppingBag, User } from 'lucide-react';
-import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
+import { ChevronDown, Mail, Phone, Clock, Send, Package, RefreshCw, User } from 'lucide-react';
 import { SEO } from '../components/seo/SEO';
 import { ContentService } from '../services/content-service';
 import { useSettingsStore } from '../store/settings-store';
@@ -13,7 +11,6 @@ import { usePageSeo } from '../lib/use-seo';
 export const HelpPage = () => {
   const { t, i18n } = useTranslation();
   const [activeAccordion, setActiveAccordion] = useState<number | null>(null);
-  const [contactStatus, setContactStatus] = useState<'idle' | 'success'>('idle');
   const [content, setContent] = useState<HelpContent | null>(null);
   const storeName = useSettingsStore(s => s.settings.storeName);
   const supportEmail = useSettingsStore(s => s.settings.supportEmail);
@@ -28,13 +25,6 @@ export const HelpPage = () => {
 
   const toggleAccordion = (index: number) => {
     setActiveAccordion(activeAccordion === index ? null : index);
-  };
-
-  const handleContactSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Mock submit
-    setContactStatus('success');
-    setTimeout(() => setContactStatus('idle'), 3000);
   };
 
   const isKa = i18n.language === 'ka';
@@ -179,32 +169,15 @@ export const HelpPage = () => {
                 </div>
              </div>
 
-             {/* Contact Form */}
-             <form onSubmit={handleContactSubmit} className="space-y-4">
-                {contactStatus === 'success' ? (
-                    <div className="bg-green-50 border border-green-200 text-green-700 p-4 rounded-lg flex items-center gap-3 animate-fade-in">
-                        <CheckCircle className="w-5 h-5" />
-                        {t('help.successMsg')}
-                    </div>
-                ) : (
-                    <>
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input label={t('help.name')} required />
-                            <Input label={t('help.email')} type="email" required />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">{t('help.message')}</label>
-                            <textarea 
-                                className="w-full border border-gray-200 rounded-lg p-3 text-sm focus:ring-1 focus:ring-brand-green focus:border-brand-green outline-none min-h-[120px]"
-                                required
-                            ></textarea>
-                        </div>
-                        <Button type="submit" size="lg" className="w-full" rightIcon={<Send className="w-4 h-4"/>}>
-                            {t('help.send')}
-                        </Button>
-                    </>
-                )}
-             </form>
+             {email ? (
+               <a
+                 href={`mailto:${email}?subject=${encodeURIComponent(`${storeName} support`)}`}
+                 className="inline-flex w-full items-center justify-center gap-2 h-14 px-8 rounded-full bg-brand-green text-white font-medium text-base hover:bg-[#9BC12A] hover:shadow-lg hover:shadow-brand-green/20 transition-all"
+               >
+                 {t('help.send')}
+                 <Send className="w-4 h-4" />
+               </a>
+             ) : null}
           </div>
         </div>
         

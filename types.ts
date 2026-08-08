@@ -123,6 +123,7 @@ export interface Address {
   firstName: string;
   lastName: string;
   email: string; // Guest checkout support
+  phone?: string;
   address1: string;
   address2?: string;
   city: string;
@@ -149,6 +150,10 @@ export interface Order {
   tax: number;
   total: number;
   createdAt: string;
+  /** order_id sent to Flitt (mirrors orderNumber). */
+  flittOrderId?: string;
+  /** Flitt payment_id from the verified server callback. */
+  flittPaymentId?: string;
 }
 
 export interface StoreSettings {

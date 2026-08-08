@@ -33,9 +33,14 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/ResetPasswordPage';
 import { AccountPage } from './pages/AccountPage';
+import { AccountOrderDetailPage } from './pages/AccountOrderDetailPage';
+import { TrackOrderPage } from './pages/TrackOrderPage';
 import { HelpPage } from './pages/HelpPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { AuthBootstrap } from './components/auth/AuthBootstrap';
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -95,6 +100,7 @@ const App = () => {
     <ErrorBoundary>
       <Router>
         <ScrollToTop />
+        <AuthBootstrap />
         <div className="flex flex-col min-h-screen">
           <Toaster />
           
@@ -129,8 +135,14 @@ const App = () => {
                                 <Route path="/wishlist" element={<WishlistPage />} />
                                 <Route path="/login" element={<LoginPage />} />
                                 <Route path="/register" element={<RegisterPage />} />
+                                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                                <Route path="/reset-password" element={<ResetPasswordPage />} />
                                 <Route path="/account" element={<AccountPage />} />
                                 <Route path="/account/orders" element={<AccountPage />} />
+                                <Route path="/account/addresses" element={<AccountPage />} />
+                                <Route path="/account/profile" element={<AccountPage />} />
+                                <Route path="/account/orders/:orderId" element={<AccountOrderDetailPage />} />
+                                <Route path="/track-order" element={<TrackOrderPage />} />
                                 <Route path="/help" element={<HelpPage />} />
                                 <Route path="/cart" element={<CartPage />} />
                                 <Route path="/checkout" element={<CheckoutPage />} />

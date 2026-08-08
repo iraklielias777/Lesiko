@@ -14,7 +14,7 @@ import { supabase } from '../lib/supabase';
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   storeName: 'LesiKo Cosmetics',
   supportEmail: 'support@lesiko.com',
-  currency: 'USD',
+  currency: 'GEL',
   taxRate: 0.08,
   freeShippingThreshold: 50,
   shippingRate: 15,

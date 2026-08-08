@@ -1,106 +1,245 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShieldCheck, Lock, CreditCard } from 'lucide-react';
+import { Lock, CreditCard, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCartStore } from '../store/cart-store';
+import { useAuthStore } from '../store/auth-store';
 import { useSettingsStore, calculateTotals } from '../store/settings-store';
 import { Button } from '../components/ui/Button';
 import { OrderSummary } from '../components/checkout/OrderSummary';
-import { PaymentService } from '../services/payment-service';
-import { OrderService } from '../services/order-service';
-import { Address, Order } from '../types';
+import { cartCheckoutFingerprint, PaymentService } from '../services/payment-service';
+import { AddressService } from '../services/address-service';
+import { Order, SavedAddress } from '../types';
 import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
+import { splitWordmark } from '../lib/wordmark';
 
 type CheckoutStep = 'shipping' | 'payment';
 
 export const CheckoutPage = () => {
   const fmt = useFormatPrice();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const { items, getSubtotal, clearCart } = useCartStore();
+  const { items, getSubtotal, refreshPrices } = useCartStore();
+  const { user, isAuthenticated } = useAuthStore();
   const settings = useSettingsStore(s => s.settings);
   const [step, setStep] = useState<CheckoutStep>('shipping');
   const [isLoading, setIsLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<string | null>(
+    () => sessionStorage.getItem(PaymentService.PENDING_ORDER_KEY),
+  );
+  const [chargedTotal, setChargedTotal] = useState<number | null>(null);
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string>('new');
+  const [saveAddress, setSaveAddress] = useState(false);
+  const flittRootRef = useRef<HTMLDivElement>(null);
+  const mountedTokenRef = useRef<string | null>(null);
+  const prefilledRef = useRef(false);
 
-  // Form State
-  const [address, setAddress] = useState<Address>({
-    email: '', firstName: '', lastName: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'US'
+  const [address, setAddress] = useState({
+    email: '', firstName: '', lastName: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'GE'
   });
-  
+
   const subtotal = getSubtotal();
   const { shipping, tax, total } = calculateTotals(subtotal, settings);
+  const displayTotal = chargedTotal ?? total;
+  const [wmBefore, wmAccent] = splitWordmark(settings.storeName || 'LesiKo');
+
+  // Refresh sale/catalogue prices as soon as checkout opens.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setRefreshing(true);
+      try {
+        await refreshPrices();
+      } finally {
+        if (!cancelled) setRefreshing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [refreshPrices]);
+
+  // Prefill from signed-in profile + address book.
+  useEffect(() => {
+    if (!isAuthenticated || !user || prefilledRef.current) return;
+    prefilledRef.current = true;
+    setAddress((prev) => ({
+      ...prev,
+      email: user.email,
+      firstName: prev.firstName || user.firstName,
+      lastName: prev.lastName || user.lastName,
+    }));
+    AddressService.getAddresses(user.id).then((list) => {
+      setSavedAddresses(list);
+      const def = list.find((a) => a.isDefault) || list[0];
+      if (def) {
+        setSelectedAddressId(def.id);
+        setAddress({
+          email: user.email,
+          firstName: def.firstName,
+          lastName: def.lastName,
+          phone: def.phone || '',
+          address1: def.address1,
+          address2: def.address2 || '',
+          city: def.city,
+          state: def.state,
+          zip: def.zip,
+          country: def.country || 'GE',
+        });
+      }
+    });
+  }, [isAuthenticated, user]);
 
   useEffect(() => {
-    if (items.length === 0) {
+    if (!refreshing && items.length === 0 && step === 'shipping') {
       navigate('/cart');
     }
-  }, [items, navigate]);
+  }, [items, navigate, step, refreshing]);
 
-  const handleShippingSubmit = (e: React.FormEvent) => {
+  const applySavedAddress = (id: string) => {
+    setSelectedAddressId(id);
+    if (id === 'new') {
+      setAddress((prev) => ({
+        ...prev,
+        email: user?.email || prev.email,
+        firstName: user?.firstName || '',
+        lastName: user?.lastName || '',
+        phone: '',
+        address1: '',
+        address2: '',
+        city: '',
+        state: '',
+        zip: '',
+        country: 'GE',
+      }));
+      return;
+    }
+    const def = savedAddresses.find((a) => a.id === id);
+    if (!def) return;
+    setAddress({
+      email: user?.email || def.email,
+      firstName: def.firstName,
+      lastName: def.lastName,
+      phone: def.phone || '',
+      address1: def.address1,
+      address2: def.address2 || '',
+      city: def.city,
+      state: def.state,
+      zip: def.zip,
+      country: def.country || 'GE',
+    });
+  };
+
+  const handleShippingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isAuthenticated && user && saveAddress && selectedAddressId === 'new') {
+      try {
+        await AddressService.addAddress(user.id, { ...address, email: user.email }, savedAddresses.length === 0);
+      } catch {
+        // Non-blocking — still continue to payment.
+      }
+    }
     setStep('payment');
     window.scrollTo(0, 0);
   };
 
-  const handlePaymentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(null);
+  // Create or reuse a pending order, mint Flitt token, mount widget.
+  useEffect(() => {
+    if (step !== 'payment' || items.length === 0 || refreshing) return;
+    if (mountedTokenRef.current) return;
 
-    try {
-      // 1. Create Payment Intent (Mock)
-      const intent = await PaymentService.createPaymentIntent(items, address, { subtotal, shipping, tax, total });
-      
-      // 2. Confirm Payment (Mock)
-      const result = await PaymentService.confirmPayment(intent.orderId, {});
-      
-      if (result.success) {
-        // 3. PERSIST ORDER TO DB (OrderService)
+    let cancelled = false;
+    const fingerprint = cartCheckoutFingerprint(items, address);
+
+    const boot = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const reuseOrderId = PaymentService.getReusablePendingOrderId(fingerprint);
+        const orderNumber = `LK${Date.now().toString().slice(-8)}`;
         const newOrder: Order = {
-            id: intent.orderId,
-            orderNumber: intent.orderId.replace('ORD-', ''),
-            customerName: `${address.firstName} ${address.lastName}`,
-            shippingAddress: address,
-            items: items,
-            paymentStatus: 'paid',
-            status: 'Processing',
-            subtotal,
-            shipping,
-            tax,
-            total,
-            createdAt: new Date().toISOString().split('T')[0]
+          id: crypto.randomUUID(),
+          orderNumber,
+          customerName: `${address.firstName} ${address.lastName}`.trim(),
+          shippingAddress: address,
+          items,
+          paymentStatus: 'pending',
+          status: 'Processing',
+          subtotal,
+          shipping,
+          tax,
+          total,
+          createdAt: new Date().toISOString().split('T')[0],
+          flittOrderId: orderNumber,
         };
 
-        await OrderService.createOrder(newOrder);
-
-        // 4. Cleanup and Redirect
-        clearCart();
-        navigate('/order-confirmation', { 
-          state: { 
-            orderId: intent.orderId,
-            order: newOrder
-          } 
+        await PaymentService.loadFlittAssets();
+        const tokenResult = await PaymentService.startCheckout(newOrder, i18n.language, {
+          reuseOrderId,
+          bootKey: fingerprint,
         });
+        if (cancelled) return;
+
+        setPendingOrderId(tokenResult.orderId);
+        if (typeof tokenResult.total === 'number') {
+          setChargedTotal(tokenResult.total);
+        }
+        if (!tokenResult.publicToken) {
+          throw new Error('Missing order access token');
+        }
+        PaymentService.rememberPendingCheckout(
+          tokenResult.orderId,
+          fingerprint,
+          tokenResult.publicToken,
+        );
+
+        await new Promise((r) => requestAnimationFrame(() => r(null)));
+        if (!flittRootRef.current || cancelled) return;
+
+        flittRootRef.current.innerHTML = '';
+        PaymentService.mountCheckout(
+          '#flitt-checkout',
+          tokenResult.token,
+          {
+            storeName: settings.storeName,
+            siteUrl: settings.siteUrl,
+          },
+          {
+            onSuccess: () => {
+              navigate(`/order-confirmation?order=${tokenResult.orderId}`);
+            },
+            onError: () => {
+              navigate(`/order-confirmation?order=${tokenResult.orderId}`);
+            },
+          },
+        );
+        mountedTokenRef.current = tokenResult.token;
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || 'Could not start payment');
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Payment failed');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+
+    boot();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, refreshing]);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
       <SEO title={t('common.checkout')} noindex />
 
-      {/* Checkout Header */}
       <div className="bg-white border-b border-gray-200 py-4">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <div className="font-heading font-bold text-2xl tracking-tight text-brand-dark">
-            Lesi<span className="text-brand-green">Ko</span> <span className="text-gray-400 text-lg font-sans font-normal ml-2">{t('common.checkout')}</span>
+            {wmBefore}<span className="text-brand-green">{wmAccent}</span>{' '}
+            <span className="text-gray-400 text-lg font-sans font-normal ml-2">{t('common.checkout')}</span>
           </div>
           <div className="flex items-center text-sm font-medium text-gray-500">
             <Lock className="w-4 h-4 mr-1" /> {t('checkout.secure')}
@@ -110,10 +249,7 @@ export const CheckoutPage = () => {
 
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
-          
-          {/* Main Form Area */}
           <div className="lg:w-2/3">
-            {/* Steps Indicator */}
             <div className="flex items-center mb-8">
               <div className={`flex items-center ${step === 'shipping' ? 'text-brand-green' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step === 'shipping' ? 'border-brand-green font-bold' : 'border-gray-300'}`}>1</div>
@@ -126,179 +262,226 @@ export const CheckoutPage = () => {
               </div>
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-6">
                 {error}
+                {step === 'payment' && (
+                  <button
+                    type="button"
+                    className="ml-3 underline font-medium"
+                    onClick={() => {
+                      mountedTokenRef.current = null;
+                      PaymentService.clearPendingCheckout();
+                      setPendingOrderId(null);
+                      setChargedTotal(null);
+                      setError(null);
+                      setStep('shipping');
+                      setTimeout(() => setStep('payment'), 0);
+                    }}
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             )}
 
-            {/* Step 1: Shipping */}
             {step === 'shipping' && (
               <form onSubmit={handleShippingSubmit} className="bg-white rounded-lg shadow-sm p-6 animate-fade-in">
                 <h2 className="text-xl font-heading font-bold mb-6">{t('checkout.contact')}</h2>
-                
+
+                {refreshing && (
+                  <p className="text-sm text-gray-400 mb-4 flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Updating prices…
+                  </p>
+                )}
+
                 <div className="space-y-4">
+                  {isAuthenticated && savedAddresses.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.selectSavedAddress')}</label>
+                      <select
+                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
+                        value={selectedAddressId}
+                        onChange={(e) => applySavedAddress(e.target.value)}
+                      >
+                        {savedAddresses.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.firstName} {a.lastName} — {a.address1}{a.isDefault ? ` (${t('account.default')})` : ''}
+                          </option>
+                        ))}
+                        <option value="new">{t('checkout.useNewAddress')}</option>
+                      </select>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.email')}</label>
-                    <input 
+                    <input
                       type="email" required
-                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
+                      readOnly={isAuthenticated}
+                      className={`w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none ${isAuthenticated ? 'bg-gray-50 text-gray-600' : ''}`}
                       value={address.email}
-                      onChange={(e) => setAddress({...address, email: e.target.value})}
+                      onChange={(e) => setAddress({ ...address, email: e.target.value })}
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.firstName')}</label>
-                      <input 
+                      <input
                         type="text" required
                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                         value={address.firstName}
-                        onChange={(e) => setAddress({...address, firstName: e.target.value})}
+                        onChange={(e) => setAddress({ ...address, firstName: e.target.value })}
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.lastName')}</label>
-                      <input 
+                      <input
                         type="text" required
                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                         value={address.lastName}
-                        onChange={(e) => setAddress({...address, lastName: e.target.value})}
+                        onChange={(e) => setAddress({ ...address, lastName: e.target.value })}
                       />
                     </div>
                   </div>
 
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.phone')}</label>
+                    <input
+                      type="tel" required
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
+                      value={address.phone}
+                      onChange={(e) => setAddress({ ...address, phone: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.address')}</label>
-                    <input 
+                    <input
                       type="text" required
                       className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                       value={address.address1}
-                      onChange={(e) => setAddress({...address, address1: e.target.value})}
+                      onChange={(e) => setAddress({ ...address, address1: e.target.value })}
                     />
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.apt')}</label>
-                    <input 
+                    <input
                       type="text"
                       className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                       value={address.address2}
-                      onChange={(e) => setAddress({...address, address2: e.target.value})}
+                      onChange={(e) => setAddress({ ...address, address2: e.target.value })}
                     />
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
                     <div className="col-span-1">
                       <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.zip')}</label>
-                      <input 
+                      <input
                         type="text" required
                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                         value={address.zip}
-                        onChange={(e) => setAddress({...address, zip: e.target.value})}
+                        onChange={(e) => setAddress({ ...address, zip: e.target.value })}
                       />
                     </div>
                     <div className="col-span-1">
                       <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.city')}</label>
-                      <input 
+                      <input
                         type="text" required
                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                         value={address.city}
-                        onChange={(e) => setAddress({...address, city: e.target.value})}
+                        onChange={(e) => setAddress({ ...address, city: e.target.value })}
                       />
                     </div>
                     <div className="col-span-1">
                       <label className="block text-sm font-medium text-gray-700 mb-1">{t('checkout.state')}</label>
-                      <input 
+                      <input
                         type="text" required
                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                         value={address.state}
-                        onChange={(e) => setAddress({...address, state: e.target.value})}
+                        onChange={(e) => setAddress({ ...address, state: e.target.value })}
                       />
                     </div>
                   </div>
                 </div>
 
+                {isAuthenticated && selectedAddressId === 'new' && (
+                  <label className="mt-4 flex items-center gap-2 text-sm text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={saveAddress}
+                      onChange={(e) => setSaveAddress(e.target.checked)}
+                    />
+                    {t('checkout.saveAddress')}
+                  </label>
+                )}
+
                 <div className="mt-8 flex justify-end">
-                  <Button type="submit" size="lg">{t('checkout.continueToPayment')}</Button>
+                  <Button type="submit" size="lg" disabled={refreshing || items.length === 0}>
+                    {t('checkout.continueToPayment')}
+                  </Button>
                 </div>
               </form>
             )}
 
-            {/* Step 2: Payment (Stripe Mock) */}
             {step === 'payment' && (
               <div className="bg-white rounded-lg shadow-sm p-6 animate-fade-in">
-                <h2 className="text-xl font-heading font-bold mb-6">{t('checkout.paymentMethod')}</h2>
-                
-                {/* Simulated Stripe Element Container */}
-                <div className="border border-gray-200 rounded-lg p-4 mb-6">
-                   <div className="flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
-                      <CreditCard className="w-5 h-5 text-gray-500" />
-                      <span className="font-medium text-gray-700">Credit or Debit Card</span>
-                      <div className="ml-auto flex gap-1">
-                         <div className="w-8 h-5 bg-gray-200 rounded"></div>
-                         <div className="w-8 h-5 bg-gray-200 rounded"></div>
-                      </div>
-                   </div>
-                   
-                   {/* Fake Elements */}
-                   <div className="space-y-4">
-                      <div>
-                        <label className="text-xs font-semibold text-gray-500 uppercase">Card Number</label>
-                        <div className="mt-1 p-3 border border-gray-300 rounded bg-gray-50 text-gray-400 font-mono text-sm">
-                           4242 4242 4242 4242
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                         <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase">Expiration</label>
-                            <div className="mt-1 p-3 border border-gray-300 rounded bg-gray-50 text-gray-400 font-mono text-sm">
-                               12 / 24
-                            </div>
-                         </div>
-                         <div>
-                            <label className="text-xs font-semibold text-gray-500 uppercase">CVC</label>
-                            <div className="mt-1 p-3 border border-gray-300 rounded bg-gray-50 text-gray-400 font-mono text-sm">
-                               ***
-                            </div>
-                         </div>
-                      </div>
-                   </div>
-                   <p className="text-xs text-gray-500 mt-4 flex items-center">
-                     <Lock className="w-3 h-3 mr-1" /> Payments are secure and encrypted.
-                   </p>
-                </div>
+                <h2 className="text-xl font-heading font-bold mb-2 flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-brand-green" />
+                  {t('checkout.paymentMethod')}
+                </h2>
+                <p className="text-sm text-gray-500 mb-6">
+                  {t('checkout.pay')} {fmt(displayTotal)} · {settings.currency || 'GEL'}
+                </p>
 
-                <div className="flex justify-between items-center">
-                   <button 
-                     type="button" 
-                     onClick={() => setStep('shipping')}
-                     className="text-gray-500 hover:text-gray-900 font-medium"
-                   >
-                     {t('checkout.backToShipping')}
-                   </button>
-                   <Button 
-                     onClick={handlePaymentSubmit} 
-                     size="lg" 
-                     isLoading={isLoading}
-                   >
-                     {t('checkout.pay')} {fmt(total)}
-                   </Button>
+                {isLoading && (
+                  <div className="flex flex-col items-center justify-center py-16 text-gray-500 gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-green" />
+                    <p className="text-sm">Preparing secure payment…</p>
+                  </div>
+                )}
+
+                <div
+                  id="flitt-checkout"
+                  ref={flittRootRef}
+                  className={isLoading ? 'hidden' : 'min-h-[320px]'}
+                />
+
+                <div className="mt-6 flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      mountedTokenRef.current = null;
+                      setChargedTotal(null);
+                      setStep('shipping');
+                    }}
+                    className="text-gray-500 hover:text-gray-900 font-medium"
+                  >
+                    {t('checkout.backToShipping')}
+                  </button>
+                  {pendingOrderId && (
+                    <button
+                      type="button"
+                      className="text-sm text-gray-400 hover:text-brand-dark"
+                      onClick={() => navigate(`/order-confirmation?order=${pendingOrderId}`)}
+                    >
+                      Already paid? Check status
+                    </button>
+                  )}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Sidebar Summary */}
           <div className="lg:w-1/3">
-            <OrderSummary 
+            <OrderSummary
               items={items}
               subtotal={subtotal}
               shipping={shipping}
               tax={tax}
-              total={total}
+              total={displayTotal}
             />
           </div>
         </div>

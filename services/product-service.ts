@@ -117,6 +117,21 @@ export const ProductService = {
     return mapProduct(data);
   },
 
+  getProductsByIds: async (ids: string[]): Promise<Product[]> => {
+    if (!supabase || ids.length === 0) return [];
+    const unique = [...new Set(ids.filter(Boolean))];
+    const { data, error } = await supabase
+      .from('products')
+      .select('*, brands(*), categories(*)')
+      .in('id', unique);
+
+    if (error) {
+      console.error('Supabase fetch error:', error);
+      return [];
+    }
+    return (data || []).map(mapProduct);
+  },
+
   getProductsByCategory: async (categorySlug: string): Promise<Product[]> => {
     if (!supabase) return [];
     const { data, error } = await supabase

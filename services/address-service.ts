@@ -1,3 +1,4 @@
+
 import { Address, SavedAddress } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -7,6 +8,7 @@ const mapAddress = (row: any): SavedAddress => ({
   firstName: row.first_name || '',
   lastName: row.last_name || '',
   email: row.email || '',
+  phone: row.phone || '',
   address1: row.address1 || '',
   address2: row.address2 || '',
   city: row.city || '',
@@ -19,6 +21,7 @@ const toRow = (address: Address) => ({
   first_name: address.firstName,
   last_name: address.lastName,
   email: address.email,
+  phone: address.phone || '',
   address1: address.address1,
   address2: address.address2 || null,
   city: address.city,
@@ -48,8 +51,6 @@ export const AddressService = {
   addAddress: async (userId: string, address: Address, isDefault: boolean): Promise<SavedAddress> => {
     if (!supabase) throw new Error('Supabase client not initialized');
 
-    // A partial unique index enforces one default per user, so the previous
-    // default has to be cleared first.
     if (isDefault) await AddressService.clearDefault(userId);
 
     const { data, error } = await supabase

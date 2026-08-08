@@ -183,11 +183,17 @@ export const AdminSEO = () => {
       {!siteUrl.trim() && (
         <div className="flex gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200">
           <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-          <div className="text-sm text-amber-900">
-            <p className="font-semibold">Set the site address before launch.</p>
+          <div className="text-sm text-amber-900 space-y-2">
+            <p className="font-semibold">Site address is required before launch.</p>
             <p className="text-amber-800/80">
-              The sitemap, canonical tags and social previews all need one absolute domain. Without it they fall back to
-              whatever host the visitor happens to be on, which lets preview deployments compete with the real site in search.
+              The sitemap, canonical tags and social previews all need one absolute domain (for example{' '}
+              <code className="text-xs bg-amber-100 px-1 rounded">https://lesiko.ge</code>). Without it they fall back to
+              whatever host the visitor happens to be on.
+            </p>
+            <p className="text-amber-800/80">
+              Also set the same origin as the edge secret{' '}
+              <code className="text-xs bg-amber-100 px-1 rounded">SITE_URL</code> so Flitt{' '}
+              <code className="text-xs bg-amber-100 px-1 rounded">response_url</code> returns customers to production.
             </p>
           </div>
         </div>
