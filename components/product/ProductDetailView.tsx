@@ -47,6 +47,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
       }
   }, [product]);
 
+  // Keep gallery index valid when the product (or its image list) changes.
+  useEffect(() => {
+    setActiveMediaIndex((prev) => {
+      if (prev === -1) {
+        return product.videoPlaybackId ? -1 : 0;
+      }
+      if (!product.images.length) return 0;
+      if (prev >= product.images.length) return 0;
+      return prev;
+    });
+  }, [product.id, product.images.length, product.videoPlaybackId]);
+
   // Determine current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product.price;
   const currentStock = selectedVariant ? selectedVariant.inventoryQuantity : product.inventoryQuantity;
@@ -56,8 +68,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
       addItem(product, quantity, selectedVariant || undefined);
   };
 
-  const isVideoActive = activeMediaIndex === -1;
-  const activeImage = product.images[activeMediaIndex];
+  const isVideoActive = activeMediaIndex === -1 && !!product.videoPlaybackId;
+  const activeImage =
+    !isVideoActive && product.images.length > 0
+      ? product.images[Math.min(Math.max(activeMediaIndex, 0), product.images.length - 1)]
+      : undefined;
+  const hasActiveImage = !!activeImage?.url;
 
   return (
     // Capped so the gallery cannot grow with the viewport. Left uncapped, a
@@ -66,29 +82,34 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12 max-w-6xl mx-auto w-full">
       {/* Left Column: Media Gallery */}
       <div className="space-y-4 w-full max-w-[560px] mx-auto md:mx-0">
-        {/* Main Viewer */}
-        <div className="aspect-square bg-gray-50 rounded-2xl overflow-hidden relative shadow-sm border border-gray-100">
-          {isVideoActive && product.videoPlaybackId ? (
+        {/* Square stage, width-capped by column and by 70dvh so short viewports
+            keep Add to cart reachable; any upload ratio letterboxes inside. */}
+        <div className="w-full max-w-[min(100%,70dvh)] aspect-square mx-auto bg-gray-50 rounded-2xl overflow-hidden relative shadow-sm border border-gray-100">
+          {isVideoActive ? (
              <MuxPlayer
                 streamType="on-demand"
-                playbackId={product.videoPlaybackId}
+                playbackId={product.videoPlaybackId!}
                 metadataVideoTitle={displayName}
                 primaryColor="#AED136"
                 secondaryColor="#000000"
                 style={{ height: '100%', width: '100%' }}
                 autoPlay="muted"
              />
-          ) : (
+          ) : hasActiveImage ? (
              /* Contained rather than cropped: a shopper deciding on a purchase
-                needs to see the whole bottle and its label. */
+                needs to see the whole bottle and its label, whatever the ratio. */
              <img
-                src={imageUrl(activeImage?.url || '', { width: 560 })}
-                srcSet={imageSrcSet(activeImage?.url || '', [400, 560, 840, 1120])}
-                sizes="(min-width: 768px) 560px, 100vw"
-                alt={activeImage?.altText || product.name}
-                className="w-full h-full object-contain p-4"
+                src={imageUrl(activeImage.url, { width: 560 })}
+                srcSet={imageSrcSet(activeImage.url, [400, 560, 840, 1120])}
+                sizes="(min-width: 768px) min(560px, 70dvh), min(100vw, 70dvh)"
+                alt={activeImage.altText || product.name}
+                className="absolute inset-0 w-full h-full object-contain p-4"
                 decoding="async"
              />
+          ) : (
+             <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
+               {t('common.noImage')}
+             </div>
           )}
         </div>
 

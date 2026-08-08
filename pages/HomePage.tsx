@@ -221,9 +221,12 @@ export const HomePage = () => {
               {t('common.viewAll')} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
-          <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-8 -mx-4 px-4 md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
-            {categories.slice(0, 6).map((cat) => (
-                <div key={cat.slug} className={`snap-start shrink-0 w-[260px] md:w-auto flex flex-col bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 ${expandedCategory === cat.slug ? 'ring-1 ring-brand-green' : ''}`}>
+          {/* items-start: on mobile, an open accordion must not stretch sibling cards to the same height (empty white gap). */}
+          <div className="flex items-start overflow-x-auto snap-x snap-mandatory gap-4 pb-8 -mx-4 px-4 md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
+            {categories.slice(0, 6).map((cat) => {
+              const isOpen = expandedCategory === cat.slug;
+              return (
+                <div key={cat.slug} className={`snap-start shrink-0 w-[260px] md:w-auto flex flex-col self-start bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 ${isOpen ? 'ring-1 ring-brand-green' : ''}`}>
                   <Link to={`/category/${cat.slug}`} className="relative aspect-[4/3] md:aspect-square overflow-hidden group block">
                     {cat.image ? (
                       <img
@@ -241,12 +244,19 @@ export const HomePage = () => {
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-60 md:opacity-0 md:group-hover:opacity-40 transition-opacity" />
                     <span className="absolute bottom-4 left-4 text-white font-bold text-lg md:hidden drop-shadow-md">{categoryLabel(cat, i18n.language)}</span>
                   </Link>
-                  <div className="p-4 flex flex-col flex-1">
+                  <div className="p-4 flex flex-col">
                     <div className="flex justify-between items-center mb-2">
                       <Link to={`/category/${cat.slug}`} className="font-heading font-bold text-gray-900 hover:text-brand-green transition-colors text-sm md:text-base">{categoryLabel(cat, i18n.language)}</Link>
-                      <button onClick={() => toggleCategory(cat.slug)} className="md:hidden p-1.5 rounded-full hover:bg-gray-100"><ChevronDown className={`w-5 h-5 transition-transform ${expandedCategory === cat.slug ? 'rotate-180' : ''}`} /></button>
+                      <button
+                        type="button"
+                        aria-expanded={isOpen}
+                        onClick={() => toggleCategory(cat.slug)}
+                        className="md:hidden p-1.5 rounded-full hover:bg-gray-100"
+                      >
+                        <ChevronDown className={`w-5 h-5 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
                     </div>
-                    <div className={`text-sm text-gray-500 overflow-hidden transition-all duration-300 ${expandedCategory === cat.slug ? 'max-h-[300px] opacity-100 mt-2' : 'max-h-0 opacity-0 md:max-h-none md:opacity-100 md:mt-2'}`}>
+                    <div className={`text-sm text-gray-500 overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-[300px] opacity-100 mt-2' : 'max-h-0 opacity-0 md:max-h-none md:opacity-100 md:mt-2'}`}>
                       <div className="flex flex-col gap-1.5 pt-2 border-t border-gray-100 md:border-none md:pt-0">
                         {cat.subs.slice(0, 4).map(sub => (
                           <Link key={sub.slug} to={`/category/${cat.slug}?subCategory=${encodeURIComponent(sub.slug)}`} className="flex items-center gap-2 hover:text-brand-green transition-colors py-0.5 group/sub">
@@ -258,7 +268,8 @@ export const HomePage = () => {
                     </div>
                   </div>
                 </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
