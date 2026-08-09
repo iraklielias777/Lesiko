@@ -152,7 +152,7 @@ export const ProductDetailPage = () => {
       <div className="container mx-auto px-4 py-10">
         {/* Main Product View (Reused) */}
         <div className="mb-20">
-          <ProductDetailView product={product} />
+          <ProductDetailView key={product.id} product={product} />
         </div>
 
         {/* Related Products */}

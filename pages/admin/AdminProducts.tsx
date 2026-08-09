@@ -18,6 +18,9 @@ import { Pagination, usePagination } from '../../components/admin/Pagination';
 import { slugifyLabel } from '../../lib/taxonomy';
 import { absoluteUrl } from '../../lib/seo';
 
+const IMAGE_ASPECT_GUIDE =
+  'Ideal upload: 1:1 (square), e.g. 1200×1200. Also good: 4:5 (e.g. 1080×1350). Avoid ultra-wide panoramas — the storefront letterboxes photos in a square stage, so square or near-square fills best.';
+
 export const AdminProducts = () => {
   const fmt = useFormatPrice();
   const { t } = useTranslation();
@@ -35,6 +38,8 @@ export const AdminProducts = () => {
   const [urlInputVisible, setUrlInputVisible] = useState(false);
   const [remoteUrl, setRemoteUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const variantFileInputRef = useRef<HTMLInputElement>(null);
+  const [variantUploadIndex, setVariantUploadIndex] = useState<number | null>(null);
   const addToast = useToastStore(s => s.addToast);
 
   const [formData, setFormDataRaw] = useState<Partial<Product>>({
@@ -205,7 +210,13 @@ export const AdminProducts = () => {
         const images = (prev.images || []).filter(i => i.id !== img.id);
         // Removing the primary would otherwise leave the product with none.
         if (images.length && !images.some(i => i.isPrimary)) images[0].isPrimary = true;
-        return { ...prev, images };
+        // Drop variant links that pointed at the deleted gallery file.
+        const variants = (prev.variants || []).map(v => {
+          if (v.imageUrl !== img.url) return v;
+          const { imageUrl: _removed, ...rest } = v;
+          return rest;
+        });
+        return { ...prev, images, variants };
       });
     } catch (e) {
       addToast("Failed to delete image", "error");
@@ -248,6 +259,36 @@ export const AdminProducts = () => {
     setFormData(prev => ({
       ...prev,
       variants: (prev.variants || []).map((v, i) => (i === index ? { ...v, ...patch } : v)),
+    }));
+  };
+
+  const handleVariantImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const index = variantUploadIndex;
+    if (!file || index == null) return;
+    setIsUploading(true);
+    try {
+      const publicUrl = await StorageService.uploadFile(file, 'products');
+      addImageToForm(publicUrl);
+      updateVariant(index, { imageUrl: publicUrl });
+      addToast('Variant image uploaded');
+    } catch {
+      addToast("Failed to upload image. Make sure 'media' bucket exists.", 'error');
+    } finally {
+      setIsUploading(false);
+      setVariantUploadIndex(null);
+      if (variantFileInputRef.current) variantFileInputRef.current.value = '';
+    }
+  };
+
+  const clearVariantImage = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      variants: (prev.variants || []).map((v, i) => {
+        if (i !== index) return v;
+        const { imageUrl: _removed, ...rest } = v;
+        return rest;
+      }),
     }));
   };
 
@@ -294,14 +335,20 @@ export const AdminProducts = () => {
       // A variant with no name is an empty row the admin never filled in.
       const variants = (formData.variants || [])
         .filter(v => v.name.trim())
-        .map(v => ({
-          ...v,
-          name: v.name.trim(),
-          inventoryQuantity: Number(v.inventoryQuantity) || 0,
-          price: v.price === undefined || v.price === null || Number.isNaN(Number(v.price))
-            ? undefined
-            : Number(v.price),
-        }));
+        .map(v => {
+          const cleaned: ProductVariant = {
+            id: v.id,
+            name: v.name.trim(),
+            inventoryQuantity: Number(v.inventoryQuantity) || 0,
+            sku: v.sku?.trim() || undefined,
+            price: v.price === undefined || v.price === null || Number.isNaN(Number(v.price))
+              ? undefined
+              : Number(v.price),
+          };
+          const imageUrl = v.imageUrl?.trim();
+          if (imageUrl) cleaned.imageUrl = imageUrl;
+          return cleaned;
+        });
 
       const productPayload: Product = {
           ...formData,
@@ -509,6 +556,7 @@ export const AdminProducts = () => {
                                 <LinkIcon className="w-3 h-3" /> {urlInputVisible ? "Hide URL Input" : "Add via URL"}
                              </button>
                           </div>
+                          <p className="text-[11px] text-gray-400 mb-3 leading-relaxed">{IMAGE_ASPECT_GUIDE}</p>
                           
                           {urlInputVisible && (
                              <div className="mb-4 flex gap-2 animate-fade-in">
@@ -628,28 +676,89 @@ export const AdminProducts = () => {
                                     <Plus className="w-3 h-3" /> Add variant
                                 </button>
                             </div>
+                            <p className="text-[11px] text-gray-400 leading-relaxed">
+                              Optional photo per variant shows on the product detail page when that option is selected. Pick from the product gallery above, or upload a new one (it is also added to the gallery). {IMAGE_ASPECT_GUIDE}
+                            </p>
                             {(formData.variants || []).length === 0 && (
                                 <p className="text-xs text-gray-400">No variants. The product is sold as a single option using the inventory above.</p>
                             )}
                             {(formData.variants || []).map((variant, index) => (
-                                <div key={variant.id} className="grid grid-cols-12 gap-2 items-center">
-                                    <div className="col-span-4">
-                                        <Input placeholder="Name (e.g. 50ml)" value={variant.name} onChange={e => updateVariant(index, { name: e.target.value })} />
+                                <div key={variant.id} className="bg-white border border-gray-100 rounded-xl p-3 space-y-3">
+                                    <div className="grid grid-cols-12 gap-2 items-center">
+                                        <div className="col-span-4">
+                                            <Input placeholder="Name (e.g. 50ml)" value={variant.name} onChange={e => updateVariant(index, { name: e.target.value })} />
+                                        </div>
+                                        <div className="col-span-3">
+                                            <Input placeholder="SKU" value={variant.sku || ''} onChange={e => updateVariant(index, { sku: e.target.value })} />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Input type="number" step="0.01" placeholder="Price" value={variant.price ?? ''} onChange={e => updateVariant(index, { price: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Input type="number" placeholder="Stock" value={variant.inventoryQuantity} onChange={e => updateVariant(index, { inventoryQuantity: Number(e.target.value) })} />
+                                        </div>
+                                        <button type="button" onClick={() => removeVariant(index)} className="col-span-1 p-2 text-gray-400 hover:text-red-500 transition-colors justify-self-center">
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                    <div className="col-span-3">
-                                        <Input placeholder="SKU" value={variant.sku || ''} onChange={e => updateVariant(index, { sku: e.target.value })} />
+                                    <div className="flex flex-wrap items-start gap-3 pt-1 border-t border-gray-50">
+                                        <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 shrink-0">
+                                          {variant.imageUrl ? (
+                                            <img src={imageUrl(variant.imageUrl, { width: 112 })} alt="" className="w-full h-full object-contain p-0.5" />
+                                          ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-[9px] text-gray-300 font-bold text-center px-1">No photo</div>
+                                          )}
+                                        </div>
+                                        <div className="flex-1 min-w-[180px] space-y-2">
+                                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Variant photo</p>
+                                          {(formData.images || []).length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5">
+                                              {(formData.images || []).map(img => (
+                                                <button
+                                                  key={img.id}
+                                                  type="button"
+                                                  title="Use this gallery image"
+                                                  onClick={() => updateVariant(index, { imageUrl: img.url })}
+                                                  className={`w-9 h-9 rounded-md overflow-hidden border-2 bg-gray-50 ${variant.imageUrl === img.url ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-200'}`}
+                                                >
+                                                  <img src={imageUrl(img.url, { width: 72 })} alt="" className="w-full h-full object-contain p-0.5" />
+                                                </button>
+                                              ))}
+                                            </div>
+                                          )}
+                                          <div className="flex flex-wrap gap-2">
+                                            <button
+                                              type="button"
+                                              disabled={isUploading}
+                                              onClick={() => {
+                                                setVariantUploadIndex(index);
+                                                variantFileInputRef.current?.click();
+                                              }}
+                                              className="text-[11px] font-bold text-brand-green hover:underline disabled:opacity-50"
+                                            >
+                                              Upload new
+                                            </button>
+                                            {variant.imageUrl && (
+                                              <button
+                                                type="button"
+                                                onClick={() => clearVariantImage(index)}
+                                                className="text-[11px] font-bold text-gray-400 hover:text-red-500"
+                                              >
+                                                Clear photo
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
                                     </div>
-                                    <div className="col-span-2">
-                                        <Input type="number" step="0.01" placeholder="Price" value={variant.price ?? ''} onChange={e => updateVariant(index, { price: e.target.value === '' ? undefined : Number(e.target.value) })} />
-                                    </div>
-                                    <div className="col-span-2">
-                                        <Input type="number" placeholder="Stock" value={variant.inventoryQuantity} onChange={e => updateVariant(index, { inventoryQuantity: Number(e.target.value) })} />
-                                    </div>
-                                    <button type="button" onClick={() => removeVariant(index)} className="col-span-1 p-2 text-gray-400 hover:text-red-500 transition-colors justify-self-center">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
                                 </div>
                             ))}
+                            <input
+                              type="file"
+                              ref={variantFileInputRef}
+                              className="hidden"
+                              accept="image/*"
+                              onChange={handleVariantImageUpload}
+                            />
                         </div>
 
                         <div className="bg-gray-50 p-4 rounded-xl space-y-4">

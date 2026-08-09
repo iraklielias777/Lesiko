@@ -21,7 +21,9 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   const { t, i18n } = useTranslation();
   
   // -1 represents video, 0+ represents image index
-  const [activeMediaIndex, setActiveMediaIndex] = useState(0); 
+  const [activeMediaIndex, setActiveMediaIndex] = useState(0);
+  // Variant photo not present in product.images — show as hero without mutating the gallery.
+  const [variantImageOverride, setVariantImageOverride] = useState<string | null>(null);
   
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'desc' | 'ingredients'>('desc');
@@ -38,26 +40,35 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   const displayName = i18n.language === 'ka' ? (product.nameKa || product.name) : product.name;
   const displayDesc = i18n.language === 'ka' ? (product.descriptionKa || product.description) : product.description;
 
-  // Select first variant by default if variants exist
-  useEffect(() => {
-      if (product.variants && product.variants.length > 0) {
-          setSelectedVariant(product.variants[0]);
-      } else {
-          setSelectedVariant(null);
-      }
-  }, [product]);
+  const applyVariantMedia = (variant: ProductVariant | null) => {
+    if (!variant?.imageUrl) {
+      setVariantImageOverride(null);
+      return;
+    }
+    const idx = product.images.findIndex((img) => img.url === variant.imageUrl);
+    if (idx >= 0) {
+      setActiveMediaIndex(idx);
+      setVariantImageOverride(null);
+    } else {
+      setVariantImageOverride(variant.imageUrl);
+    }
+  };
 
-  // Keep gallery index valid when the product (or its image list) changes.
+  // Hard reset per product so gallery/variant state cannot leak across SKUs.
   useEffect(() => {
-    setActiveMediaIndex((prev) => {
-      if (prev === -1) {
-        return product.videoPlaybackId ? -1 : 0;
-      }
-      if (!product.images.length) return 0;
-      if (prev >= product.images.length) return 0;
-      return prev;
-    });
-  }, [product.id, product.images.length, product.videoPlaybackId]);
+    setQuantity(1);
+    setIsDescExpanded(false);
+    setActiveMediaIndex(0);
+    setVariantImageOverride(null);
+
+    if (product.variants && product.variants.length > 0) {
+      const first = product.variants[0];
+      setSelectedVariant(first);
+      applyVariantMedia(first);
+    } else {
+      setSelectedVariant(null);
+    }
+  }, [product.id]);
 
   // Determine current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product.price;
@@ -68,12 +79,26 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
       addItem(product, quantity, selectedVariant || undefined);
   };
 
-  const isVideoActive = activeMediaIndex === -1 && !!product.videoPlaybackId;
+  const selectVariant = (variant: ProductVariant) => {
+    setSelectedVariant(variant);
+    applyVariantMedia(variant);
+  };
+
+  const selectGalleryImage = (idx: number) => {
+    setVariantImageOverride(null);
+    setActiveMediaIndex(idx);
+  };
+
+  const isVideoActive = !variantImageOverride && activeMediaIndex === -1 && !!product.videoPlaybackId;
   const activeImage =
-    !isVideoActive && product.images.length > 0
+    !isVideoActive && !variantImageOverride && product.images.length > 0
       ? product.images[Math.min(Math.max(activeMediaIndex, 0), product.images.length - 1)]
       : undefined;
-  const hasActiveImage = !!activeImage?.url;
+  const heroUrl = variantImageOverride || activeImage?.url;
+  const heroAlt = variantImageOverride
+    ? `${displayName}${selectedVariant?.name ? ` — ${selectedVariant.name}` : ''}`
+    : (activeImage?.altText || product.name);
+  const hasActiveImage = !!heroUrl;
 
   return (
     // Capped so the gallery cannot grow with the viewport. Left uncapped, a
@@ -99,10 +124,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
              /* Contained rather than cropped: a shopper deciding on a purchase
                 needs to see the whole bottle and its label, whatever the ratio. */
              <img
-                src={imageUrl(activeImage.url, { width: 560 })}
-                srcSet={imageSrcSet(activeImage.url, [400, 560, 840, 1120])}
+                key={heroUrl}
+                src={imageUrl(heroUrl!, { width: 560 })}
+                srcSet={imageSrcSet(heroUrl!, [400, 560, 840, 1120])}
                 sizes="(min-width: 768px) min(560px, 70dvh), min(100vw, 70dvh)"
-                alt={activeImage.altText || product.name}
+                alt={heroAlt}
                 className="absolute inset-0 w-full h-full object-contain p-4"
                 decoding="async"
              />
@@ -119,8 +145,14 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
           {product.images.map((img, idx) => (
             <button 
               key={img.id}
-              onClick={() => setActiveMediaIndex(idx)}
-              className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${!isVideoActive && activeMediaIndex === idx ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-200'}`}
+              onClick={() => selectGalleryImage(idx)}
+              className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
+                !isVideoActive && !variantImageOverride && activeMediaIndex === idx
+                  ? 'border-brand-green ring-1 ring-brand-green'
+                  : variantImageOverride && img.url === variantImageOverride
+                  ? 'border-brand-green ring-1 ring-brand-green'
+                  : 'border-transparent hover:border-gray-200'
+              }`}
             >
               <img
                 src={imageUrl(img.url, { width: 160 })}
@@ -135,7 +167,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
           {/* Video Thumbnail */}
           {product.videoPlaybackId && (
              <button
-                onClick={() => setActiveMediaIndex(-1)}
+                onClick={() => { setVariantImageOverride(null); setActiveMediaIndex(-1); }}
                 className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all bg-black flex items-center justify-center relative group ${isVideoActive ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-600'}`}
              >
                 <img 
@@ -205,7 +237,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
                     {product.variants.map((variant) => (
                         <button
                             key={variant.id}
-                            onClick={() => setSelectedVariant(variant)}
+                            onClick={() => selectVariant(variant)}
                             className={`min-w-[80px] px-4 py-2 border rounded-lg text-sm font-medium transition-all relative ${
                                 selectedVariant?.id === variant.id
                                 ? 'border-brand-green bg-brand-green/10 text-brand-dark ring-1 ring-brand-green'

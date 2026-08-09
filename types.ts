@@ -5,6 +5,8 @@ export interface ProductVariant {
   price?: number; // Optional override
   inventoryQuantity: number;
   sku?: string;
+  /** Optional storefront photo; when set, detail page shows it for this variant. */
+  imageUrl?: string;
 }
 
 export interface Product {
