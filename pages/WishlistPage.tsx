@@ -24,11 +24,11 @@ export const WishlistPage = () => {
 
   const renderProductRow = (product: Product, type: 'wishlist' | 'saved') => (
     <div key={product.id} className="flex flex-col sm:flex-row gap-4 p-4 border rounded-lg border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all bg-white animate-fade-in group">
-        <div className="w-full sm:w-28 h-28 bg-gray-100 rounded-md overflow-hidden flex-shrink-0 relative">
+        <div className="w-full sm:w-28 h-28 bg-gray-50 rounded-md overflow-hidden flex-shrink-0 relative">
             <img 
                 src={product.images[0]?.url} 
                 alt={product.name} 
-                className={`w-full h-full object-cover transition-transform duration-700 group-hover:scale-105 ${product.inventoryQuantity === 0 ? 'opacity-60 grayscale' : ''}`} 
+                className={`w-full h-full object-contain p-0.5 transition-transform duration-700 group-hover:scale-105 ${product.inventoryQuantity === 0 ? 'opacity-60 grayscale' : ''}`} 
             />
             <Link to={`/product/${product.slug}`} className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
         </div>

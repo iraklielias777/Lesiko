@@ -459,8 +459,8 @@ export const AdminProducts = () => {
                     <tr key={product.id} className="hover:bg-gray-50/50">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                             <img src={imageUrl(product.images[0]?.url || '', { width: 80 })} alt="" className="w-full h-full object-cover" />
+                          <div className="w-10 h-10 bg-gray-50 rounded overflow-hidden flex-shrink-0">
+                             <img src={imageUrl(product.images[0]?.url || '', { width: 80 })} alt="" className="w-full h-full object-contain p-0.5" />
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium text-gray-900 line-clamp-1">{product.name}</p>
@@ -581,7 +581,7 @@ export const AdminProducts = () => {
                             {formData.images?.map((img) => (
                               <div key={img.id} className="space-y-1.5">
                                 <div className={`relative aspect-square rounded-lg overflow-hidden border-2 group bg-gray-50 ${img.isPrimary ? 'border-brand-green' : 'border-gray-200'}`}>
-                                  <img src={imageUrl(img.url, { width: 240 })} alt={img.altText} className="w-full h-full object-cover" />
+                                  <img src={imageUrl(img.url, { width: 240 })} alt={img.altText} className="w-full h-full object-contain p-0.5" />
                                   <button type="button" onClick={() => removeImage(img)} className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"><X className="w-3 h-3" /></button>
                                   {img.isPrimary ? (
                                     <div className="absolute bottom-0 left-0 right-0 bg-brand-green text-[8px] text-white text-center font-bold py-0.5">PRIMARY</div>

@@ -285,8 +285,8 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                         onClick={() => { addToHistory(p.name); navigate(`/product/${p.slug}`); onClose(); }}
                                         className="flex items-center gap-4 p-2 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 cursor-pointer transition-all group"
                                     >
-                                        <div className="w-12 h-12 bg-white rounded-lg overflow-hidden border border-gray-100 flex-shrink-0">
-                                            <img src={p.images[0]?.url} alt="" className="w-full h-full object-cover" />
+                                        <div className="w-12 h-12 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 flex-shrink-0">
+                                            <img src={p.images[0]?.url} alt="" className="w-full h-full object-contain p-0.5" />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-start">
@@ -418,7 +418,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                                 }`}
                                             >
                                                 <div className="w-14 h-16 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0 relative">
-                                                    <img src={product.images[0]?.url} alt="" className="w-full h-full object-cover" />
+                                                    <img src={product.images[0]?.url} alt="" className="w-full h-full object-contain p-0.5" />
                                                     {product.compareAtPrice && product.compareAtPrice > product.price && (
                                                         <div className="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-bold px-1 rounded-bl">SALE</div>
                                                     )}
@@ -465,7 +465,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                 <img 
                                     src={activeItem.data.images[0]?.url} 
                                     alt={activeItem.data.name} 
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-contain p-2"
                                 />
                                 {activeItem.data.isNew && (
                                     <span className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-brand-dark text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm">

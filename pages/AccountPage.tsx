@@ -288,7 +288,7 @@ export const AccountPage = () => {
                       <div className="flex flex-col md:flex-row gap-6 items-center">
                         <div className="flex -space-x-4 overflow-hidden py-2">
                           {orderList[0].items.map((item, i) => (
-                            <img key={i} src={item.product.images[0]?.url} alt={item.product.name} className="inline-block h-16 w-16 rounded-full ring-2 ring-white object-cover" />
+                            <img key={i} src={item.product.images[0]?.url} alt={item.product.name} className="inline-block h-16 w-16 rounded-full ring-2 ring-white object-contain bg-gray-50" />
                           ))}
                         </div>
                         <div className="flex-1 text-center md:text-left">

@@ -57,7 +57,7 @@ export const CartPage = () => {
               return (
                 <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-4">
                   <Link to={`/product/${item.product.slug}`} className="w-28 h-32 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0">
-                    <img src={item.product.images[0]?.url} alt={item.product.name} className="w-full h-full object-cover" />
+                    <img src={item.product.images[0]?.url} alt={item.product.name} className="w-full h-full object-contain p-0.5" />
                   </Link>
 
                   <div className="flex-1 flex flex-col justify-between py-1">

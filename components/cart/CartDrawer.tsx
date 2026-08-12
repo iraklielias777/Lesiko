@@ -126,7 +126,7 @@ export const CartDrawer = () => {
                     <img 
                       src={item.product.images[0]?.url} 
                       alt={item.product.name}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-full object-contain p-0.5 transition-transform duration-500 group-hover:scale-105"
                     />
                     <Link 
                       to={`/product/${item.product.slug}`} 

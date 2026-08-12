@@ -164,9 +164,9 @@ export const AdminDashboard = () => {
              {bestSellers.map(({ product, units }, idx) => (
                <div key={product.id} className="flex items-center gap-4 p-2 hover:bg-gray-50 rounded-lg transition-colors">
                   <span className="font-bold text-gray-300 w-6">#{idx + 1}</span>
-                  <div className="w-12 h-12 bg-gray-100 rounded-md overflow-hidden flex-shrink-0">
+                  <div className="w-12 h-12 bg-gray-50 rounded-md overflow-hidden flex-shrink-0">
                      {product.images[0] && (
-                       <img src={imageUrl(product.images[0].url, { width: 96 })} alt={product.name} className="w-full h-full object-cover" loading="lazy" />
+                       <img src={imageUrl(product.images[0].url, { width: 96 })} alt={product.name} className="w-full h-full object-contain p-0.5" loading="lazy" />
                      )}
                   </div>
                   <div className="flex-1 min-w-0">

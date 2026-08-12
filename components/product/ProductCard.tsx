@@ -43,7 +43,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
             srcSet={imageSrcSet(primaryImageUrl, [300, 450, 600, 900])}
             sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
             alt={primaryImage?.altText || product.name}
-            className="w-full h-full object-cover transition-transform duration-700 ease-premium group-hover:scale-105"
+            className="w-full h-full object-contain transition-transform duration-700 ease-premium group-hover:scale-105"
             loading="lazy"
             decoding="async"
           />
