@@ -17,6 +17,7 @@ import { categoryLabel } from '../lib/taxonomy';
 import { useFormatPrice } from '../lib/format';
 import { useEntitySeo, useSiteUrl } from '../lib/use-seo';
 import { useSettingsStore } from '../store/settings-store';
+import { CARD_SIZES } from '../lib/product-image';
 import { NotFoundPage } from './NotFoundPage';
 
 export const ProductDetailPage = () => {
@@ -46,7 +47,7 @@ export const ProductDetailPage = () => {
         setProduct(data || null);
         if (data) {
           addRecentlyViewed(data); // Add to history
-          const related = await ProductService.getRelatedProducts(data.id);
+          const related = await ProductService.getRelatedProducts(data.id, data.category.slug);
           setRelatedProducts(related);
         }
       }
@@ -160,7 +161,7 @@ export const ProductDetailPage = () => {
           <h2 className="font-heading text-2xl font-bold mb-8">{t('product.related')}</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {relatedProducts.map(p => (
-              <ProductCard key={p.id} product={p} />
+              <ProductCard key={p.id} product={p} sizes={CARD_SIZES.related4} />
             ))}
           </div>
         </div>

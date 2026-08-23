@@ -10,17 +10,25 @@ import { useUIStore } from '../../store/ui-store';
 import { useWishlistStore } from '../../store/wishlist-store';
 import { imageSrcSet, imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
+import { CARD_SIZES, fitClass, frameColor, primaryImageOf } from '../../lib/product-image';
+import { useImageFade } from '../../lib/use-image-fade';
 
 interface ProductCardProps {
   product: Product;
+  /**
+   * The slot this card occupies, so the browser picks the right srcset
+   * candidate. Pick one from CARD_SIZES rather than writing a string here.
+   */
+  sizes?: string;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, sizes = CARD_SIZES.listing3 }) => {
   const { t, i18n } = useTranslation();
   const addItem = useCartStore((state) => state.addItem);
   const openQuickView = useUIStore((state) => state.openQuickView);
   const { isInWishlist, toggleItem: toggleWishlist } = useWishlistStore();
   const fmt = useFormatPrice();
+  const fade = useImageFade();
   
   const isFavorited = isInWishlist(product.id);
   const discountPercentage = product.compareAtPrice 
@@ -30,23 +38,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   // Localization logic
   const displayName = i18n.language === 'ka' ? (product.nameKa || product.name) : product.name;
 
-  const primaryImage = product.images.find(img => img.isPrimary) || product.images[0];
-  const primaryImageUrl = primaryImage?.url || 'https://picsum.photos/400/600';
+  const primaryImage = primaryImageOf(product);
+  const primaryImageUrl = primaryImage?.url || '';
 
   return (
     <div className="group relative flex flex-col h-full rounded-xl bg-white p-2">
       {/* Image Container */}
-      <div className="relative aspect-[4/5] overflow-hidden rounded-lg bg-gray-50 mb-4 isolate">
+      <div
+        className="relative aspect-square overflow-hidden rounded-lg mb-4 isolate"
+        style={{ backgroundColor: frameColor(primaryImage) }}
+      >
         <Link to={`/product/${product.slug}`} className="block w-full h-full">
-          <img
-            src={imageUrl(primaryImageUrl, { width: 600 })}
-            srcSet={imageSrcSet(primaryImageUrl, [300, 450, 600, 900])}
-            sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-            alt={primaryImage?.altText || product.name}
-            className="w-full h-full object-contain transition-transform duration-700 ease-premium group-hover:scale-105"
-            loading="lazy"
-            decoding="async"
-          />
+          {primaryImageUrl ? (
+            <img
+              src={imageUrl(primaryImageUrl, { width: 600 })}
+              srcSet={imageSrcSet(primaryImageUrl, [300, 450, 600, 900])}
+              sizes={sizes}
+              alt={primaryImage?.altText || product.name}
+              width={1200}
+              height={1200}
+              ref={fade.ref}
+              onLoad={fade.onLoad}
+              className={`w-full h-full ${fitClass(primaryImage)} ${fade.className} transition-transform duration-700 ease-premium group-hover:scale-105`}
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <div className="w-full h-full bg-gray-50" />
+          )}
           {/* Subtle overlay on hover */}
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors duration-500" />
         </Link>

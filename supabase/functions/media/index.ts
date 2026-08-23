@@ -25,6 +25,7 @@ const MAX_FETCH_BYTES = 25 * 1024 * 1024;
 // 2000px WebP well under this, so anything still over it either dodged
 // compression or is not really a photo, and would quietly eat storage.
 const MAX_BYTES = 2 * 1024 * 1024;
+const ONE_YEAR_SECONDS = 31536000;
 const ALLOWED_MIME = [
   'image/png',
   'image/jpeg',
@@ -135,7 +136,13 @@ async function store(blob: Blob, folder: string, originalName?: string) {
 
   const { error } = await admin.storage.from(BUCKET).upload(path, blob, {
     contentType: mime,
-    cacheControl: '3600',
+    // A year, not an hour. Every object here is content-addressed — a UUID plus
+    // a timestamp — so its bytes can never change; replacing an image writes a
+    // new path and the row is repointed at it. At the old `3600` every
+    // returning visitor re-downloaded every product photo after an hour, and
+    // the render endpoint inherits the object's value, so the resized variants
+    // expired just as fast.
+    cacheControl: `${ONE_YEAR_SECONDS}`,
     upsert: false,
   });
   if (error) return json({ error: error.message }, 500);

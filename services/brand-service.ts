@@ -27,18 +27,50 @@ const seoColumns = (brand: Brand) => ({
   meta_keywords: nullIfBlank(brand.metaKeywords),
 });
 
-export const BrandService = {
-  getBrands: async (): Promise<Brand[]> => {
-    const { data, error } = await supabase
-      .from('brands')
-      .select('*')
-      .order('name');
+/**
+ * Brands are a short list that half the app needs: the header of a brand page,
+ * the filter sidebar, and — since catalogue filtering moved server-side — every
+ * query that filters or searches by brand, because PostgREST cannot express an
+ * `or` across an embedded resource and needs plain brand ids.
+ *
+ * One request per session, shared, invalidated by the admin after a write.
+ */
+let brandCache: Brand[] | null = null;
+let brandInflight: Promise<Brand[]> | null = null;
 
-    if (error) {
-      console.error('Error fetching brands:', error);
-      return [];
+export const invalidateBrands = () => {
+  brandCache = null;
+  brandInflight = null;
+};
+
+const fetchBrands = async (): Promise<Brand[]> => {
+  const { data, error } = await supabase
+    .from('brands')
+    .select('*')
+    .order('name');
+
+  if (error) {
+    console.error('Error fetching brands:', error);
+    return [];
+  }
+  return (data || []).map(mapBrand);
+};
+
+/** Slug -> brand, for resolving filter and search terms to ids. */
+export const getBrandIndex = async (): Promise<Map<string, Brand>> => {
+  const brands = await BrandService.getBrands();
+  return new Map(brands.map(brand => [brand.slug, brand]));
+};
+
+export const BrandService = {
+  getBrands: (): Promise<Brand[]> => {
+    if (brandCache) return Promise.resolve(brandCache);
+    if (!brandInflight) {
+      brandInflight = fetchBrands()
+        .then(rows => { brandCache = rows; brandInflight = null; return rows; })
+        .catch(err => { brandInflight = null; throw err; });
     }
-    return (data || []).map(mapBrand);
+    return brandInflight;
   },
 
   getBrandBySlug: async (slug: string): Promise<Brand | undefined> => {
@@ -63,6 +95,7 @@ export const BrandService = {
       ...seoColumns(brand),
     });
     if (error) throw error;
+    invalidateBrands();
   },
 
   updateBrand: async (brand: Brand): Promise<void> => {
@@ -79,10 +112,12 @@ export const BrandService = {
       })
       .eq('id', brand.id);
     if (error) throw error;
+    invalidateBrands();
   },
 
   deleteBrand: async (id: string): Promise<void> => {
     const { error } = await supabase.from('brands').delete().eq('id', id);
     if (error) throw error;
+    invalidateBrands();
   }
 };

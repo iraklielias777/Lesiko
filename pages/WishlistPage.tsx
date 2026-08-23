@@ -11,6 +11,7 @@ import { SEO } from '../components/seo/SEO';
 import { useCategories } from '../lib/use-categories';
 import { categoryLabel } from '../lib/taxonomy';
 import { useFormatPrice } from '../lib/format';
+import { ProductThumb } from '../components/product/ProductThumb';
 import { usePageSeo } from '../lib/use-seo';
 
 export const WishlistPage = () => {
@@ -24,14 +25,15 @@ export const WishlistPage = () => {
 
   const renderProductRow = (product: Product, type: 'wishlist' | 'saved') => (
     <div key={product.id} className="flex flex-col sm:flex-row gap-4 p-4 border rounded-lg border-gray-100 hover:border-gray-200 hover:shadow-sm transition-all bg-white animate-fade-in group">
-        <div className="w-full sm:w-28 h-28 bg-gray-50 rounded-md overflow-hidden flex-shrink-0 relative">
-            <img 
-                src={product.images[0]?.url} 
-                alt={product.name} 
-                className={`w-full h-full object-contain p-0.5 transition-transform duration-700 group-hover:scale-105 ${product.inventoryQuantity === 0 ? 'opacity-60 grayscale' : ''}`} 
-            />
+        <ProductThumb
+            product={product}
+            alt={product.name}
+            size={112}
+            className="w-full sm:w-28 h-28 rounded-md flex-shrink-0"
+            imgClassName={`transition-transform duration-700 group-hover:scale-105 ${product.inventoryQuantity === 0 ? 'opacity-60 grayscale' : ''}`}
+        >
             <Link to={`/product/${product.slug}`} className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
-        </div>
+        </ProductThumb>
         <div className="flex-1 flex flex-col justify-between">
             <div>
                 <div className="flex justify-between items-start">

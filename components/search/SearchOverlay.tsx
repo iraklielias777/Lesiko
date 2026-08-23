@@ -8,6 +8,7 @@ import { ProductService } from '../../services/product-service';
 import { Product } from '../../types';
 import { Button } from '../ui/Button';
 import { useFormatPrice } from '../../lib/format';
+import { ProductThumb } from '../product/ProductThumb';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -36,10 +37,8 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
     if (isOpen) {
         document.body.style.overflow = 'hidden';
         
-        // Load Popular
-        ProductService.getAllProducts().then(products => {
-            setPopularProducts(products.filter(p => p.isTrending).slice(0, 3));
-        });
+        // Load Popular. Three cards used to cost the entire catalogue.
+        ProductService.getTrending(3).then(setPopularProducts);
 
         // Load History
         try {
@@ -285,9 +284,12 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                         onClick={() => { addToHistory(p.name); navigate(`/product/${p.slug}`); onClose(); }}
                                         className="flex items-center gap-4 p-2 rounded-xl hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-100 cursor-pointer transition-all group"
                                     >
-                                        <div className="w-12 h-12 bg-gray-50 rounded-lg overflow-hidden border border-gray-100 flex-shrink-0">
-                                            <img src={p.images[0]?.url} alt="" className="w-full h-full object-contain p-0.5" />
-                                        </div>
+                                        <ProductThumb
+                                            product={p}
+                                            alt=""
+                                            size={48}
+                                            className="w-12 h-12 rounded-lg border border-gray-100 flex-shrink-0"
+                                        />
                                         <div className="flex-1 min-w-0">
                                             <div className="flex justify-between items-start">
                                                 <h4 className="font-medium text-gray-900 truncate group-hover:text-brand-green transition-colors">{p.name}</h4>
@@ -417,12 +419,16 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                                     : 'bg-white border-transparent hover:border-gray-200 hover:shadow-sm'
                                                 }`}
                                             >
-                                                <div className="w-14 h-16 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0 relative">
-                                                    <img src={product.images[0]?.url} alt="" className="w-full h-full object-contain p-0.5" />
+                                                <ProductThumb
+                                                    product={product}
+                                                    alt=""
+                                                    size={56}
+                                                    className="w-14 h-14 rounded-lg flex-shrink-0"
+                                                >
                                                     {product.compareAtPrice && product.compareAtPrice > product.price && (
                                                         <div className="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-bold px-1 rounded-bl">SALE</div>
                                                     )}
-                                                </div>
+                                                </ProductThumb>
                                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                                                     <div className="flex justify-between items-start">
                                                         <h4 className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-brand-green' : 'text-gray-900'}`}>
@@ -461,18 +467,19 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                 <div className="hidden md:flex w-[40%] bg-white flex-col border-l border-gray-100 animate-fade-in">
                     {activeItem.type === 'product' ? (
                         <div className="flex flex-col h-full">
-                            <div className="relative aspect-square w-full bg-gray-50 overflow-hidden">
-                                <img 
-                                    src={activeItem.data.images[0]?.url} 
-                                    alt={activeItem.data.name} 
-                                    className="w-full h-full object-contain p-2"
-                                />
+                            <ProductThumb
+                                product={activeItem.data}
+                                alt={activeItem.data.name}
+                                size={420}
+                                eager
+                                className="aspect-square w-full"
+                            >
                                 {activeItem.data.isNew && (
                                     <span className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm text-brand-dark text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm">
                                         {t('common.new')}
                                     </span>
                                 )}
-                            </div>
+                            </ProductThumb>
                             <div className="p-6 flex flex-col flex-1">
                                 <div className="mb-auto">
                                     <span className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 block">{activeItem.data.brand.name}</span>

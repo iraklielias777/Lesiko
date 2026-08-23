@@ -1,46 +1,64 @@
 
-import React, { useEffect, Suspense, ReactNode, Component } from 'react';
+import React, { useEffect, Suspense, ReactNode, Component, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 
-// Layout & Components
+// Layout & Components. These render on every storefront route, so they belong
+// in the entry chunk.
 import { Header } from './components/layout/Header';
 import { Footer } from './components/layout/Footer';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { QuickViewModal } from './components/product/QuickViewModal';
-import { Toaster } from './components/ui/Toaster'; 
+import { Toaster } from './components/ui/Toaster';
 import { useSettingsStore } from './store/settings-store';
+import { AuthBootstrap } from './components/auth/AuthBootstrap';
 
-// Admin
-import { AdminLayout } from './components/admin/AdminLayout';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminProducts } from './pages/admin/AdminProducts';
-import { AdminOrders } from './pages/admin/AdminOrders';
-import { AdminCustomers } from './pages/admin/AdminCustomers';
-import { AdminSettings } from './pages/admin/AdminSettings';
-import { AdminCategories } from './pages/admin/AdminCategories';
-import { AdminBrands } from './pages/admin/AdminBrands';
-import { AdminContent } from './pages/admin/AdminContent';
-import { AdminSEO } from './pages/admin/AdminSEO';
-
-// Pages
+// The three routes a shopper actually lands on stay in the entry chunk;
+// splitting them would only add a round trip to the first paint.
 import { HomePage } from './pages/HomePage';
 import { ProductListingPage } from './pages/ProductListingPage';
-import { BrandIndexPage } from './pages/BrandIndexPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
-import { WishlistPage } from './pages/WishlistPage';
-import { CartPage } from './pages/CartPage';
-import { CheckoutPage } from './pages/CheckoutPage';
-import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
-import { ResetPasswordPage } from './pages/ResetPasswordPage';
-import { AccountPage } from './pages/AccountPage';
-import { AccountOrderDetailPage } from './pages/AccountOrderDetailPage';
-import { TrackOrderPage } from './pages/TrackOrderPage';
-import { HelpPage } from './pages/HelpPage';
-import { NotFoundPage } from './pages/NotFoundPage';
-import { AuthBootstrap } from './components/auth/AuthBootstrap';
+
+/**
+ * Everything below is loaded on demand.
+ *
+ * The whole application used to build as one 439 KB chunk, which meant every
+ * shopper downloaded the entire admin panel — nine pages of forms and editors
+ * behind a role check they will never pass — before the homepage could render.
+ * Checkout, the account area and the auth pages are the same story: real code,
+ * but not on the path to a first paint.
+ */
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then(m => ({ default: m.AdminLayout })));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminProducts = lazy(() => import('./pages/admin/AdminProducts').then(m => ({ default: m.AdminProducts })));
+const AdminOrders = lazy(() => import('./pages/admin/AdminOrders').then(m => ({ default: m.AdminOrders })));
+const AdminCustomers = lazy(() => import('./pages/admin/AdminCustomers').then(m => ({ default: m.AdminCustomers })));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings').then(m => ({ default: m.AdminSettings })));
+const AdminCategories = lazy(() => import('./pages/admin/AdminCategories').then(m => ({ default: m.AdminCategories })));
+const AdminBrands = lazy(() => import('./pages/admin/AdminBrands').then(m => ({ default: m.AdminBrands })));
+const AdminContent = lazy(() => import('./pages/admin/AdminContent').then(m => ({ default: m.AdminContent })));
+const AdminSEO = lazy(() => import('./pages/admin/AdminSEO').then(m => ({ default: m.AdminSEO })));
+
+const BrandIndexPage = lazy(() => import('./pages/BrandIndexPage').then(m => ({ default: m.BrandIndexPage })));
+const WishlistPage = lazy(() => import('./pages/WishlistPage').then(m => ({ default: m.WishlistPage })));
+const CartPage = lazy(() => import('./pages/CartPage').then(m => ({ default: m.CartPage })));
+const CheckoutPage = lazy(() => import('./pages/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
+const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage').then(m => ({ default: m.OrderConfirmationPage })));
+const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
+const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
+const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })));
+const AccountOrderDetailPage = lazy(() => import('./pages/AccountOrderDetailPage').then(m => ({ default: m.AccountOrderDetailPage })));
+const TrackOrderPage = lazy(() => import('./pages/TrackOrderPage').then(m => ({ default: m.TrackOrderPage })));
+const HelpPage = lazy(() => import('./pages/HelpPage').then(m => ({ default: m.HelpPage })));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
+
+/** Shown while a route chunk arrives. Matches the spinner the app already uses. */
+const RouteFallback = () => (
+  <div className="flex items-center justify-center py-32">
+    <div className="animate-spin h-8 w-8 border-4 border-brand-green border-t-transparent rounded-full" />
+  </div>
+);
 
 // Scroll to top on route change
 const ScrollToTop = () => {
@@ -104,7 +122,7 @@ const App = () => {
         <div className="flex flex-col min-h-screen">
           <Toaster />
           
-          <Suspense fallback={<div className="h-screen flex items-center justify-center">Loading...</div>}>
+          <Suspense fallback={<div className="h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-brand-green border-t-transparent rounded-full" /></div>}>
             <Routes>
                 <Route path="/admin" element={<AdminLayout />}>
                     <Route index element={<AdminDashboard />} />
@@ -124,6 +142,7 @@ const App = () => {
                         <CartDrawer />
                         <QuickViewModal />
                         <main className="flex-grow">
+                          <Suspense fallback={<RouteFallback />}>
                             <Routes>
                                 <Route path="/" element={<HomePage />} />
                                 <Route path="/products" element={<ProductListingPage />} />
@@ -149,6 +168,7 @@ const App = () => {
                                 <Route path="/order-confirmation" element={<OrderConfirmationPage />} />
                                 <Route path="*" element={<NotFoundPage />} />
                             </Routes>
+                          </Suspense>
                         </main>
                         <Footer />
                     </>

@@ -7,15 +7,27 @@ import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/product/ProductCard';
 import { ProductService } from '../services/product-service';
 import { BrandService } from '../services/brand-service';
-import { CategoryService } from '../services/category-service';
 import { ContentService } from '../services/content-service';
 import { FooterContent, Product, Brand, CategoryHierarchyItem, HeroContent, PromoContent, SkinTypeContent, SocialContent } from '../types';
 import { RecentlyViewed } from '../components/product/RecentlyViewed';
 import { SEO } from '../components/seo/SEO';
 import { categoryLabel, subLabel } from '../lib/taxonomy';
+import { loadCategories } from '../lib/use-categories';
 import { imageSrcSet, imageUrl } from '../lib/image-url';
 import { useSettingsStore } from '../store/settings-store';
 import { usePageSeo, useSiteUrl } from '../lib/use-seo';
+import { CARD_SIZES } from '../lib/product-image';
+
+/**
+ * The hero renders twice — a full-bleed backdrop on mobile, a right-hand panel
+ * on desktop — because the two layouts are genuinely different. `display: none`
+ * does not stop an image loading, so when the two elements asked for different
+ * widths every visitor downloaded both. Identical src/srcSet/sizes makes the
+ * browser resolve them to one resource and fetch it once; only the wrapper
+ * differs. The hidden copy is aria-hidden so the alt text is not read twice.
+ */
+const HERO_WIDTHS = [600, 900, 1200, 1600];
+const HERO_SIZES = '(min-width: 768px) 50vw, 100vw';
 
 const SKIN_TYPE_ICONS: Record<string, any> = {
     normal: Activity,
@@ -48,23 +60,18 @@ export const HomePage = () => {
     .filter(Boolean);
 
   useEffect(() => {
-    ProductService.getAllProducts().then(products => {
-        const trending = products.filter(p => p.isTrending);
-        if (trending.length >= 8) {
-            setTrendingProducts(trending.slice(0, 8));
-        } else {
-            const remaining = products.filter(p => !p.isTrending).slice(0, 8 - trending.length);
-            setTrendingProducts([...trending, ...remaining]);
-        }
-    });
+    // Was: fetch all 240 products with every column and filter in the browser,
+    // to render eight cards. The fallback to newest now lives in the query.
+    ProductService.getTrending(8).then(setTrendingProducts);
 
     BrandService.getBrands().then(fetchedBrands => {
         setBrands(fetchedBrands.slice(0, 8));
     });
 
-    CategoryService.getCategories().then(fetchedCategories => {
-        setCategories(fetchedCategories);
-    });
+    // Via the shared cache, not CategoryService directly: the header, the
+    // footer and the filter sidebar all want the same rows, and going straight
+    // to the service made the homepage fetch them a second time.
+    loadCategories().then(setCategories).catch(() => {});
 
     ContentService.getPromoContent().then(setPromoContent);
     ContentService.getSkinTypeContent().then(setSkinTypeContent);
@@ -160,9 +167,9 @@ export const HomePage = () => {
         <div className="absolute inset-0 md:hidden z-0">
             {heroImage && (
               <img
-                src={imageUrl(heroImage, { width: 800 })}
-                srcSet={imageSrcSet(heroImage, [600, 800, 1200])}
-                sizes="100vw"
+                src={imageUrl(heroImage, { width: HERO_WIDTHS[2] })}
+                srcSet={imageSrcSet(heroImage, HERO_WIDTHS)}
+                sizes={HERO_SIZES}
                 alt={heroText.title}
                 className="w-full h-full object-cover"
                 fetchPriority="high"
@@ -195,10 +202,11 @@ export const HomePage = () => {
         <div className="hidden md:block w-1/2 h-full relative overflow-hidden">
           {heroImage && (
             <img
-              src={imageUrl(heroImage, { width: 1200 })}
-              srcSet={imageSrcSet(heroImage, [800, 1200, 1600])}
-              sizes="50vw"
-              alt={heroText.title}
+              src={imageUrl(heroImage, { width: HERO_WIDTHS[2] })}
+              srcSet={imageSrcSet(heroImage, HERO_WIDTHS)}
+              sizes={HERO_SIZES}
+              alt=""
+              aria-hidden="true"
               className="w-full h-full object-cover animate-float"
               style={{ animationDuration: '8s' }}
               fetchPriority="high"
@@ -306,7 +314,7 @@ export const HomePage = () => {
           </div>
           <div className="flex overflow-x-auto snap-x snap-mandatory gap-6 px-6 pb-12 md:grid md:grid-cols-4 md:gap-x-6 md:gap-y-12 md:px-4 md:pb-0 scrollbar-hide">
             {trendingProducts.map((product, idx) => (
-                <div key={product.id} className="min-w-[260px] md:min-w-0 snap-start animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}><ProductCard product={product} /></div>
+                <div key={product.id} className="min-w-[260px] md:min-w-0 snap-start animate-fade-in-up" style={{ animationDelay: `${idx * 100}ms` }}><ProductCard product={product} sizes={CARD_SIZES.rail4} /></div>
             ))}
           </div>
         </div>

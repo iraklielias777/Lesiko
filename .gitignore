@@ -25,3 +25,6 @@ dist-ssr
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Cursor local tooling / MCP
+.cursor/

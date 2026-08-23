@@ -55,6 +55,19 @@ export interface ProductImage {
   url: string;
   altText: string;
   isPrimary: boolean;
+  /**
+   * Backdrop the photo was shot on, as #rrggbb, detected at upload. The card
+   * paints its frame this colour so a grey studio shot does not sit inside a
+   * lighter grey box with a visible seam. Absent on images uploaded before
+   * normalisation existed; callers fall back to a neutral.
+   */
+  bgColor?: string;
+  /**
+   * `contain` for a normalised packshot (already re-framed at ingest, so it
+   * fills its square). `cover` for a lifestyle photo, which should crop to fill
+   * rather than letterbox. Defaults to `contain`.
+   */
+  fit?: 'contain' | 'cover';
 }
 
 export interface Brand extends EntitySeo {

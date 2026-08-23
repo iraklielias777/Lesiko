@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../store/settings-store';
 import { Button } from '../ui/Button';
 import { useTranslation } from 'react-i18next';
 import { useFormatPrice } from '../../lib/format';
+import { ProductThumb } from '../product/ProductThumb';
 
 export const CartDrawer = () => {
   const fmt = useFormatPrice();
@@ -122,18 +123,19 @@ export const CartDrawer = () => {
               
               return (
                 <div key={item.id} className="flex gap-4 animate-fade-in group bg-white p-3 rounded-xl border border-gray-100 hover:border-brand-green/30 transition-colors shadow-sm">
-                  <div className="w-24 h-28 bg-gray-50 rounded-lg overflow-hidden flex-shrink-0 relative">
-                    <img 
-                      src={item.product.images[0]?.url} 
-                      alt={item.product.name}
-                      className="w-full h-full object-contain p-0.5 transition-transform duration-500 group-hover:scale-105"
-                    />
+                  <ProductThumb
+                    product={item.product}
+                    alt={item.product.name}
+                    size={96}
+                    className="w-24 h-24 rounded-lg flex-shrink-0"
+                    imgClassName="transition-transform duration-500 group-hover:scale-105"
+                  >
                     <Link 
                       to={`/product/${item.product.slug}`} 
                       onClick={toggleCart}
                       className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"
                     />
-                  </div>
+                  </ProductThumb>
                   <div className="flex-1 flex flex-col justify-between py-1">
                     <div>
                       <h3 className="font-heading font-semibold text-gray-900 line-clamp-2 leading-tight mb-1">

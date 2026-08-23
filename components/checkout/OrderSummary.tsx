@@ -2,6 +2,7 @@
 import React from 'react';
 import { CartItem } from '../../types';
 import { useFormatPrice } from '../../lib/format';
+import { ProductThumb } from '../product/ProductThumb';
 
 interface OrderSummaryProps {
   items: CartItem[];
@@ -23,11 +24,16 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({ items, subtotal, shi
           
           return (
             <div key={item.id} className="flex gap-4">
-              <div className="w-16 h-16 bg-gray-50 rounded overflow-hidden border border-gray-200 flex-shrink-0 relative">
-                 <img src={item.product.images[0]?.url} alt={item.product.name} className="w-full h-full object-contain p-0.5" />
-                 <span className="absolute -top-1 -right-1 bg-gray-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full">
-                   {item.quantity}
-                 </span>
+              <div className="relative flex-shrink-0">
+                <ProductThumb
+                  product={item.product}
+                  alt={item.product.name}
+                  size={64}
+                  className="w-16 h-16 rounded border border-gray-200"
+                />
+                <span className="absolute -top-1 -right-1 bg-gray-500 text-white text-[10px] w-5 h-5 flex items-center justify-center rounded-full">
+                  {item.quantity}
+                </span>
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 line-clamp-2">{item.product.name}</p>

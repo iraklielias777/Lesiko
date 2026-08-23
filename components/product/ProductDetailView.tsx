@@ -1,8 +1,7 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Star, Truck, ShieldCheck, RefreshCw, Minus, Plus, Heart, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import MuxPlayer from '@mux/mux-player-react';
 import { Product, ProductVariant } from '../../types';
 import { Button } from '../ui/Button';
 import { useCartStore } from '../../store/cart-store';
@@ -10,6 +9,14 @@ import { useWishlistStore } from '../../store/wishlist-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { imageSrcSet, imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
+import { fitClass, frameColor } from '../../lib/product-image';
+
+/**
+ * Mux Player is a web-component bundle that only matters to a product with a
+ * video, and no product in the catalogue has one. Loading it on demand keeps it
+ * out of the chunk every shopper downloads.
+ */
+const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 
 interface ProductDetailViewProps {
   product: Product;
@@ -94,6 +101,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
     !isVideoActive && !variantImageOverride && product.images.length > 0
       ? product.images[Math.min(Math.max(activeMediaIndex, 0), product.images.length - 1)]
       : undefined;
+  // The variant override is a bare URL; recover its row so the stage can use
+  // the backdrop and fit recorded for it.
+  const heroImage = variantImageOverride
+    ? product.images.find((img) => img.url === variantImageOverride)
+    : activeImage;
   const heroUrl = variantImageOverride || activeImage?.url;
   const heroAlt = variantImageOverride
     ? `${displayName}${selectedVariant?.name ? ` — ${selectedVariant.name}` : ''}`
@@ -109,17 +121,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
       <div className="space-y-4 w-full max-w-[560px] mx-auto md:mx-0">
         {/* Square stage, width-capped by column and by 70dvh so short viewports
             keep Add to cart reachable; any upload ratio letterboxes inside. */}
-        <div className="w-full max-w-[min(100%,70dvh)] aspect-square mx-auto bg-gray-50 rounded-2xl overflow-hidden relative shadow-sm border border-gray-100">
+        <div
+          className="w-full max-w-[min(100%,70dvh)] aspect-square mx-auto rounded-2xl overflow-hidden relative shadow-sm border border-gray-100"
+          style={{ backgroundColor: frameColor(heroImage) }}
+        >
           {isVideoActive ? (
-             <MuxPlayer
-                streamType="on-demand"
-                playbackId={product.videoPlaybackId!}
-                metadataVideoTitle={displayName}
-                primaryColor="#AED136"
-                secondaryColor="#000000"
-                style={{ height: '100%', width: '100%' }}
-                autoPlay="muted"
-             />
+             <Suspense fallback={<div className="absolute inset-0 bg-gray-900 animate-pulse" />}>
+               <MuxPlayer
+                  streamType="on-demand"
+                  playbackId={product.videoPlaybackId!}
+                  metadataVideoTitle={displayName}
+                  primaryColor="#AED136"
+                  secondaryColor="#000000"
+                  style={{ height: '100%', width: '100%' }}
+                  autoPlay="muted"
+               />
+             </Suspense>
           ) : hasActiveImage ? (
              /* Contained rather than cropped: a shopper deciding on a purchase
                 needs to see the whole bottle and its label, whatever the ratio. */
@@ -129,8 +146,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
                 srcSet={imageSrcSet(heroUrl!, [400, 560, 840, 1120])}
                 sizes="(min-width: 768px) min(560px, 70dvh), min(100vw, 70dvh)"
                 alt={heroAlt}
-                className="absolute inset-0 w-full h-full object-contain p-4"
+                width={1200}
+                height={1200}
+                className={`absolute inset-0 w-full h-full ${fitClass(heroImage)} ${heroImage?.bgColor ? '' : 'p-4'}`}
                 decoding="async"
+                fetchPriority="high"
              />
           ) : (
              <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
@@ -157,7 +177,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
               <img
                 src={imageUrl(img.url, { width: 160 })}
                 alt={img.altText || `${product.name} thumbnail`}
-                className="w-full h-full object-contain bg-gray-50 p-1"
+                className={`w-full h-full ${fitClass(img)} ${img.bgColor ? '' : 'bg-gray-50 p-1'}`}
+                style={img.bgColor ? { backgroundColor: img.bgColor } : undefined}
                 loading="lazy"
                 decoding="async"
               />

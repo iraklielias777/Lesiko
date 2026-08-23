@@ -1,7 +1,6 @@
 
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { Plus, Search, Edit2, Trash2, X, UploadCloud, Link as LinkIcon, Tag, Sliders, PlayCircle, Loader2, PackageOpen, AlertTriangle } from 'lucide-react';
-import MuxPlayer from '@mux/mux-player-react';
 import { useAdminStore } from '../../store/admin-store';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -9,7 +8,8 @@ import { Product, ProductVariant } from '../../types';
 import { useToastStore } from '../../store/toast-store';
 import { useTranslation } from 'react-i18next';
 import { Checkbox } from '../../components/ui/Checkbox';
-import { StorageService } from '../../services/storage-service';
+import { StorageService, UploadedImage } from '../../services/storage-service';
+import { LOW_FILL_WARNING, SOFT_UPSCALE_WARNING } from '../../lib/image-normalize';
 import { imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
 import { useSettingsStore } from '../../store/settings-store';
@@ -18,8 +18,55 @@ import { Pagination, usePagination } from '../../components/admin/Pagination';
 import { slugifyLabel } from '../../lib/taxonomy';
 import { absoluteUrl } from '../../lib/seo';
 
+/** Only rendered while previewing a playback id, so it loads on demand. */
+const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
+
 const IMAGE_ASPECT_GUIDE =
-  'Ideal upload: 1:1 (square), e.g. 1200×1200. Also good: 4:5 (e.g. 1080×1350). Avoid ultra-wide panoramas — the storefront letterboxes photos in a square stage, so square or near-square fills best.';
+  'Upload any framing — the product is detected, cropped out of its backdrop and re-centred on a 1200×1200 square automatically, so every card matches. What matters is resolution: aim for the product itself to be at least 800px on its longest edge. A photo shot on a coloured or grey sweep keeps that colour; the card frame matches it.';
+
+/**
+ * Says what happened to a freshly uploaded photo. Only shown for this session's
+ * uploads — there is no stored record of how a source asset was framed, and
+ * guessing from the saved file would be wrong.
+ */
+const ImageQualityNote: React.FC<{ report?: UploadedImage; bgColor?: string }> = ({ report, bgColor }) => {
+  if (!report) {
+    return bgColor ? (
+      <p className="flex items-center gap-1 text-[9px] text-gray-400">
+        <span className="w-2.5 h-2.5 rounded-sm border border-gray-200" style={{ backgroundColor: bgColor }} />
+        frame {bgColor}
+      </p>
+    ) : null;
+  }
+
+  const problems: string[] = [];
+  if (!report.normalized) {
+    problems.push('kept as shot — no plain backdrop found, so the card will crop this to fill');
+  } else {
+    if ((report.fillRatio ?? 1) < LOW_FILL_WARNING) {
+      problems.push('the product is small in frame; a tighter shot would render larger');
+    }
+    if ((report.upscale ?? 1) >= SOFT_UPSCALE_WARNING) {
+      problems.push('source resolution is low, so this was magnified and will look soft');
+    }
+  }
+
+  if (!problems.length) {
+    return (
+      <p className="flex items-center gap-1 text-[9px] text-brand-green font-medium">
+        <span className="w-2.5 h-2.5 rounded-sm border border-gray-200" style={{ backgroundColor: report.bgColor }} />
+        re-framed to square
+      </p>
+    );
+  }
+
+  return (
+    <p className="flex items-start gap-1 text-[9px] text-amber-600 leading-snug">
+      <AlertTriangle className="w-2.5 h-2.5 shrink-0 mt-px" />
+      <span>{problems.join('; ')}</span>
+    </p>
+  );
+};
 
 export const AdminProducts = () => {
   const fmt = useFormatPrice();
@@ -40,6 +87,9 @@ export const AdminProducts = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const variantFileInputRef = useRef<HTMLInputElement>(null);
   const [variantUploadIndex, setVariantUploadIndex] = useState<number | null>(null);
+  // Framing quality for images uploaded in this session, keyed by image id.
+  // Not persisted: it describes the source asset, not the stored product.
+  const [imageReports, setImageReports] = useState<Record<string, UploadedImage>>({});
   const addToast = useToastStore(s => s.addToast);
 
   const [formData, setFormDataRaw] = useState<Partial<Product>>({
@@ -109,6 +159,7 @@ export const AdminProducts = () => {
   const openModal = (product?: Product) => {
     setUrlInputVisible(false);
     setRemoteUrl('');
+    setImageReports({});
     if (product) {
       setEditingId(product.id);
       setFormDataRaw({ ...product });
@@ -156,9 +207,11 @@ export const AdminProducts = () => {
     if (file) {
       setIsUploading(true);
       try {
-        const publicUrl = await StorageService.uploadFile(file, 'products');
-        addImageToForm(publicUrl);
-        addToast("Image uploaded successfully");
+        const uploaded = await StorageService.uploadProductImage(file);
+        addImageToForm(uploaded);
+        addToast(uploaded.normalized
+          ? 'Image uploaded and re-framed'
+          : 'Image uploaded (kept as shot — no plain backdrop to crop)');
       } catch (err) {
         addToast("Failed to upload image. Make sure 'media' bucket exists.", "error");
       } finally {
@@ -172,8 +225,8 @@ export const AdminProducts = () => {
     if (!remoteUrl) return;
     setIsUploading(true);
     try {
-      const publicUrl = await StorageService.uploadFromUrl(remoteUrl, 'products');
-      addImageToForm(publicUrl);
+      const uploaded = await StorageService.uploadProductImageFromUrl(remoteUrl);
+      addImageToForm(uploaded);
       setRemoteUrl('');
       setUrlInputVisible(false);
       addToast("Image fetched and saved");
@@ -184,21 +237,26 @@ export const AdminProducts = () => {
     }
   };
 
-  const addImageToForm = (url: string) => {
+  const addImageToForm = (uploaded: UploadedImage): string => {
+    const id = crypto.randomUUID();
+    setImageReports(prev => ({ ...prev, [id]: uploaded }));
     setFormData(prev => ({
       ...prev,
       images: [
         ...(prev.images || []),
         {
-          id: crypto.randomUUID(),
-          url,
+          id,
+          url: uploaded.url,
           // A sensible default the admin can refine; a raw filename would be
           // worse than nothing for screen readers.
           altText: prev.name?.trim() || '',
           isPrimary: (prev.images?.length || 0) === 0,
+          bgColor: uploaded.bgColor,
+          fit: uploaded.fit,
         }
       ]
     }));
+    return id;
   };
 
   const removeImage = async (img: any) => {
@@ -268,9 +326,9 @@ export const AdminProducts = () => {
     if (!file || index == null) return;
     setIsUploading(true);
     try {
-      const publicUrl = await StorageService.uploadFile(file, 'products');
-      addImageToForm(publicUrl);
-      updateVariant(index, { imageUrl: publicUrl });
+      const uploaded = await StorageService.uploadProductImage(file);
+      addImageToForm(uploaded);
+      updateVariant(index, { imageUrl: uploaded.url });
       addToast('Variant image uploaded');
     } catch {
       addToast("Failed to upload image. Make sure 'media' bucket exists.", 'error');
@@ -603,6 +661,7 @@ export const AdminProducts = () => {
                                   title="Describes the image for screen readers and search engines"
                                   className="w-full p-1.5 border border-gray-200 rounded text-[10px] outline-none focus:border-brand-green"
                                 />
+                                <ImageQualityNote report={imageReports[img.id]} bgColor={img.bgColor} />
                               </div>
                             ))}
                             <button
@@ -781,7 +840,9 @@ export const AdminProducts = () => {
                             />
                             {formData.videoPlaybackId && (
                                 <div className="rounded-lg overflow-hidden max-w-xs">
-                                    <MuxPlayer playbackId={formData.videoPlaybackId} streamType="on-demand" />
+                                    <Suspense fallback={<div className="aspect-video bg-gray-900 animate-pulse rounded-lg" />}>
+                                        <MuxPlayer playbackId={formData.videoPlaybackId} streamType="on-demand" />
+                                    </Suspense>
                                 </div>
                             )}
                         </div>

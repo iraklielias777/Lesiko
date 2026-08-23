@@ -3,6 +3,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRecentlyViewedStore } from '../../store/recently-viewed-store';
 import { ProductCard } from './ProductCard';
+import { CARD_SIZES } from '../../lib/product-image';
 
 export const RecentlyViewed = () => {
   const { t } = useTranslation();
@@ -18,7 +19,7 @@ export const RecentlyViewed = () => {
         <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-6 md:grid md:grid-cols-4 lg:grid-cols-5 md:pb-0 scroll-pl-4 scrollbar-hide">
           {items.slice(0, 5).map((product) => (
              <div key={product.id} className="min-w-[200px] md:min-w-0 snap-center">
-                <ProductCard product={product} />
+                <ProductCard product={product} sizes={CARD_SIZES.rail5} />
              </div>
           ))}
         </div>

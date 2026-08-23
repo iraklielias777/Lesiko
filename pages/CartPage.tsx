@@ -7,6 +7,7 @@ import { useSettingsStore, calculateTotals } from '../store/settings-store';
 import { Button } from '../components/ui/Button';
 import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
+import { ProductThumb } from '../components/product/ProductThumb';
 
 export const CartPage = () => {
   const fmt = useFormatPrice();
@@ -56,8 +57,13 @@ export const CartPage = () => {
 
               return (
                 <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-4">
-                  <Link to={`/product/${item.product.slug}`} className="w-28 h-32 bg-gray-50 rounded-xl overflow-hidden flex-shrink-0">
-                    <img src={item.product.images[0]?.url} alt={item.product.name} className="w-full h-full object-contain p-0.5" />
+                  <Link to={`/product/${item.product.slug}`} className="flex-shrink-0">
+                    <ProductThumb
+                      product={item.product}
+                      alt={item.product.name}
+                      size={112}
+                      className="w-28 h-28 rounded-xl"
+                    />
                   </Link>
 
                   <div className="flex-1 flex flex-col justify-between py-1">

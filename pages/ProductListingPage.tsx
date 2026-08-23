@@ -15,6 +15,8 @@ import { BrandService } from '../services/brand-service';
 import { Brand } from '../types';
 import { useEntitySeo, usePageSeo, useSiteUrl } from '../lib/use-seo';
 import { useSettingsStore } from '../store/settings-store';
+import { CARD_SIZES } from '../lib/product-image';
+import { thumbSrc, thumbSrcSet } from '../lib/image-url';
 
 type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating';
 
@@ -114,19 +116,29 @@ export const ProductListingPage = () => {
     return () => { active = false; };
   }, [isBrandPage, slug]);
 
-  // Fetch Data when filters change
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setLoading(true);
-      const data = await SearchService.search(filters);
-      setResults(data);
-      setCurrentPage(1); // Reset page on filter change
-      setLoading(false);
-    };
+  // `filters` is rebuilt on every change, so its identity is useless as a
+  // dependency; the serialised form only changes when a value actually does.
+  const filterKey = JSON.stringify(filters);
 
-    const timeout = setTimeout(fetchProducts, 300);
-    return () => clearTimeout(timeout);
-  }, [filters]);
+  // Changing a filter returns you to page one. Changing the page must not.
+  useEffect(() => { setCurrentPage(1); }, [filterKey]);
+
+  // One page of results comes from the server now, not a slice of the whole
+  // catalogue. The debounce covers the price inputs, which fire per keystroke.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    const timeout = setTimeout(async () => {
+      const data = await SearchService.search(filters, currentPage, ITEMS_PER_PAGE);
+      if (cancelled) return;
+      setResults(data);
+      setLoading(false);
+    }, 250);
+
+    return () => { cancelled = true; clearTimeout(timeout); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterKey, currentPage]);
 
   const handleOpenMobileFilters = () => {
       setTempFilters(filters);
@@ -177,9 +189,10 @@ export const ProductListingPage = () => {
 
   const title = getPageTitle();
 
-  // Pagination Logic
-  const totalPages = Math.ceil(results.products.length / ITEMS_PER_PAGE);
-  const paginatedProducts = results.products.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  // `results.products` is already the current page; `total` is the full match
+  // count, which is what the pager and the result count need.
+  const totalPages = Math.max(1, Math.ceil(results.total / ITEMS_PER_PAGE));
+  const paginatedProducts = results.products;
 
   // Whichever row backs this view owns its SEO copy. A filtered listing with no
   // row of its own falls through to the shop-all page entry.
@@ -269,9 +282,13 @@ export const ProductListingPage = () => {
         <div className="container mx-auto px-4 py-16 text-center animate-fade-in">
           {isBrandPage && brand?.image && (
             <img
-              src={brand.image}
+              src={thumbSrc(brand.image, 80)}
+              srcSet={thumbSrcSet(brand.image, 80)}
               alt={brand.name}
+              width={160}
+              height={160}
               className="w-20 h-20 rounded-full object-cover mx-auto mb-5 border border-gray-200"
+              decoding="async"
             />
           )}
           <h1 className="font-heading text-4xl md:text-5xl font-bold text-gray-900 mb-4 tracking-tight capitalize">{title}</h1>
@@ -421,7 +438,7 @@ export const ProductListingPage = () => {
                       className="animate-fade-in-up" 
                       style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'both' }}
                     >
-                      <ProductCard product={product} />
+                      <ProductCard product={product} sizes={CARD_SIZES.listing3} />
                     </div>
                   ))}
                 </div>

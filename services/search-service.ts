@@ -1,21 +1,33 @@
 
 import { Product } from '../types';
-import { ProductService } from './product-service';
+import {
+  CatalogueFilters,
+  FacetRow,
+  ProductService,
+  SortKey,
+} from './product-service';
+import { BrandService } from './brand-service';
 import { ContentService } from './content-service';
+import { loadCategories } from '../lib/use-categories';
+import { categoryLabel, subLabel } from '../lib/taxonomy';
 
-export interface SearchFilters {
-  query?: string;
-  categories?: string[];
-  subCategories?: string[];
-  brands?: string[];
-  minPrice?: number;
-  maxPrice?: number;
-  skinTypes?: string[];
-  rating?: number;
-  inStock?: boolean;
-  onSale?: boolean;
-  sort?: 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating';
-}
+/**
+ * Storefront search and faceting.
+ *
+ * This used to download the whole catalogue and do everything in memory. Now
+ * the matching, sorting and pagination happen in Postgres (see
+ * ProductService.listProducts) and this module is only responsible for the
+ * shape the UI expects and for the facet counts.
+ *
+ * Facet counts describe the catalogue, not the current result set — that is
+ * deliberate and unchanged: the sidebar is telling you what each filter would
+ * give you, so the numbers must not move as you tick boxes. Because they are
+ * catalogue-wide they are also cacheable, which is what keeps them off the
+ * critical path.
+ */
+
+export type SearchFilters = CatalogueFilters;
+export type { SortKey };
 
 export interface Facet {
   label: string;
@@ -24,7 +36,9 @@ export interface Facet {
 }
 
 export interface SearchResults {
+  /** One page of results. */
   products: Product[];
+  /** Everything matching the filters, for the pager. */
   total: number;
   facets: {
     categories: Facet[];
@@ -43,147 +57,150 @@ export interface QuickSearchResults {
   brands: { name: string; slug: string }[];
 }
 
+const EMPTY_FACETS: SearchResults['facets'] = {
+  categories: [], subCategories: {}, brands: [], skinTypes: [], priceRange: { min: 0, max: 1000 },
+};
+
+const countBy = <T>(items: T[], key: (item: T) => string | undefined): Record<string, number> => {
+  const counts: Record<string, number> = {};
+  for (const item of items) {
+    const value = key(item);
+    if (value) counts[value] = (counts[value] || 0) + 1;
+  }
+  return counts;
+};
+
+/**
+ * Built from the narrow facet projection plus the category, brand and skin-type
+ * lists that are cached anyway. No product bodies are involved.
+ */
+const buildFacets = async (rows: FacetRow[]): Promise<SearchResults['facets']> => {
+  if (!rows.length) return EMPTY_FACETS;
+
+  const [brands, categories, skinTypeContent] = await Promise.all([
+    BrandService.getBrands(),
+    loadCategories().catch(() => []),
+    ContentService.getSkinTypeContent().catch(() => []),
+  ]);
+
+  const categoryCounts = countBy(rows, row => row.categorySlug);
+  const categoryFacets: Facet[] = Object.keys(categoryCounts).map(slug => ({
+    label: categories.find(category => category.slug === slug)?.label || slug,
+    value: slug,
+    count: categoryCounts[slug],
+  }));
+
+  // Keyed by parent category slug; the sidebar resolves display labels from the
+  // hierarchy, so only the count is consumed here.
+  const subCategories: Record<string, Facet[]> = {};
+  for (const facet of categoryFacets) {
+    const inCategory = rows.filter(row => row.categorySlug === facet.value);
+    const subCounts = countBy(inCategory, row => row.subCategory);
+    subCategories[facet.value] = Object.keys(subCounts).map(subSlug => ({
+      label: subSlug,
+      value: subSlug,
+      count: subCounts[subSlug],
+    }));
+  }
+
+  const brandCounts = countBy(rows, row => row.brandId);
+  const brandFacets: Facet[] = brands
+    .map(brand => ({ label: brand.name, value: brand.slug, count: brandCounts[brand.id] || 0 }))
+    .filter(facet => facet.count > 0)
+    .sort((a, b) => a.label.localeCompare(b.label));
+
+  // A product declares its skin type through a tag, so the facet is the set of
+  // configured skin types that at least one product actually carries.
+  const tagCounts = countBy(
+    rows.flatMap(row => row.tags.map(tag => ({ tag: tag.toLowerCase() }))),
+    entry => entry.tag,
+  );
+  const skinTypes: Facet[] = skinTypeContent
+    .map(type => ({
+      label: type.name,
+      value: type.key,
+      count: tagCounts[type.key.toLowerCase()] || 0,
+    }))
+    .filter(facet => facet.count > 0);
+
+  const prices = rows.map(row => row.price);
+  return {
+    categories: categoryFacets,
+    subCategories,
+    brands: brandFacets,
+    skinTypes,
+    priceRange: {
+      min: prices.length ? Math.floor(Math.min(...prices)) : 0,
+      max: prices.length ? Math.ceil(Math.max(...prices)) : 1000,
+    },
+  };
+};
+
 export const SearchService = {
-  async search(filters: SearchFilters): Promise<SearchResults> {
-    const [allProducts, skinTypeContent] = await Promise.all([
-      ProductService.getAllProducts(),
-      ContentService.getSkinTypeContent(),
+  async search(filters: SearchFilters, page = 1, pageSize = 12): Promise<SearchResults> {
+    // The page and the facets are independent, and the facets are usually a
+    // cache hit, so they go out together rather than one after the other.
+    const [pageResult, facetRows] = await Promise.all([
+      ProductService.listProducts(filters, page, pageSize),
+      ProductService.getFacetRows().catch(() => [] as FacetRow[]),
     ]);
 
-    if (!allProducts || allProducts.length === 0) {
-      return {
-        products: [],
-        total: 0,
-        facets: { categories: [], subCategories: {}, brands: [], skinTypes: [], priceRange: { min: 0, max: 1000 } }
-      };
-    }
-
-    let filtered = allProducts.filter(product => {
-      if (filters.query) {
-        const q = filters.query.toLowerCase();
-        const matchesName = product.name.toLowerCase().includes(q);
-        const matchesDesc = product.description.toLowerCase().includes(q);
-        const matchesBrand = product.brand.name.toLowerCase().includes(q);
-        if (!matchesName && !matchesDesc && !matchesBrand) return false;
-      }
-
-      if (filters.categories && filters.categories.length > 0) {
-        if (!filters.categories.includes(product.category.slug)) return false;
-      }
-
-      if (filters.subCategories && filters.subCategories.length > 0) {
-        if (!product.subCategory) return false;
-        if (!filters.subCategories.includes(product.subCategory)) return false;
-      }
-
-      if (filters.brands && filters.brands.length > 0) {
-        if (!filters.brands.includes(product.brand.slug)) return false;
-      }
-
-      if (filters.minPrice !== undefined && product.price < filters.minPrice) return false;
-      if (filters.maxPrice !== undefined && product.price > filters.maxPrice) return false;
-
-      if (filters.inStock && product.inventoryQuantity === 0) return false;
-
-      if (filters.onSale) {
-          const isOnSale = product.compareAtPrice && product.compareAtPrice > product.price;
-          if (!isOnSale) return false;
-      }
-
-      if (filters.skinTypes && filters.skinTypes.length > 0) {
-        const hasMatch = filters.skinTypes.some(type => 
-          product.tags?.map(t => t.toLowerCase()).includes(type.toLowerCase())
-        );
-        if (!hasMatch) return false;
-      }
-
-      return true;
-    });
-
-    filtered = [...filtered].sort((a, b) => {
-      switch (filters.sort) {
-        case 'price_asc': return a.price - b.price;
-        case 'price_desc': return b.price - a.price;
-        case 'newest': return b.isNew ? 1 : -1;
-        case 'rating': return b.averageRating - a.averageRating;
-        default: return 0;
-      }
-    });
-
-    // Helper for facets
-    const getCounts = (items: any[], keyExtractor: (item: any) => string | undefined) => {
-      const counts: Record<string, number> = {};
-      items.forEach(item => {
-        const key = keyExtractor(item);
-        if (key) counts[key] = (counts[key] || 0) + 1;
-      });
-      return counts;
-    };
-
-    const categoryCounts = getCounts(allProducts, p => p.category.slug);
-    const categories: Facet[] = Object.keys(categoryCounts).map(slug => {
-        const p = allProducts.find(p => p.category.slug === slug);
-        return { label: p?.category.name || slug, value: slug, count: categoryCounts[slug] };
-    });
-
-    // Keyed by sub-category slug; the sidebar resolves display labels from the
-    // category hierarchy, so only the count is consumed here.
-    const subCategories: Record<string, Facet[]> = {};
-    categories.forEach(cat => {
-        const productsInCat = allProducts.filter(p => p.category.slug === cat.value);
-        const subCounts = getCounts(productsInCat, p => p.subCategory);
-        subCategories[cat.value] = Object.keys(subCounts).map(subSlug => ({
-            label: subSlug,
-            value: subSlug,
-            count: subCounts[subSlug]
-        }));
-    });
-
-    const brandCounts = getCounts(allProducts, p => p.brand.slug);
-    const brands: Facet[] = Object.keys(brandCounts).map(slug => {
-        const p = allProducts.find(p => p.brand.slug === slug);
-        return { label: p?.brand.name || slug, value: slug, count: brandCounts[slug] };
-    });
-
-    // A product declares its skin type through a tag, so the facet is the set
-    // of configured skin types that at least one product actually carries.
-    const skinTypes: Facet[] = skinTypeContent
-      .map(type => {
-        const key = type.key.toLowerCase();
-        const count = allProducts.filter(p =>
-          p.tags?.some(tag => tag.toLowerCase() === key)
-        ).length;
-        return { label: type.name, value: type.key, count };
-      })
-      .filter(facet => facet.count > 0);
-
-    const prices = allProducts.map(p => p.price);
-    const minPrice = prices.length ? Math.floor(Math.min(...prices)) : 0;
-    const maxPrice = prices.length ? Math.ceil(Math.max(...prices)) : 1000;
-
     return {
-      products: filtered,
-      total: filtered.length,
-      facets: {
-        categories,
-        subCategories,
-        brands,
-        skinTypes,
-        priceRange: { min: minPrice, max: maxPrice }
-      }
+      products: pageResult.products,
+      total: pageResult.total,
+      facets: await buildFacets(facetRows),
     };
   },
 
+  /**
+   * Type-ahead. Products come from the server; categories and brands are
+   * matched against the lists already cached in the browser, so the whole
+   * thing costs one small request.
+   *
+   * The category and brand sections were previously hardcoded to empty while
+   * the overlay still rendered headings for them — permanently dead UI.
+   */
   async quickSearch(query: string): Promise<QuickSearchResults> {
-    if (!query) return { products: [], categories: [], brands: [] };
-    const allProducts = await ProductService.getAllProducts();
-    const q = query.toLowerCase();
+    const term = query.trim().toLowerCase();
+    if (!term) return { products: [], categories: [], brands: [] };
 
-    const products = allProducts.filter(p => 
-      p.name.toLowerCase().includes(q) || 
-      p.brand.name.toLowerCase().includes(q)
-    ).slice(0, 5);
+    const [products, categories, brands] = await Promise.all([
+      ProductService.quickSearch(query, 5),
+      loadCategories().catch(() => []),
+      BrandService.getBrands().catch(() => []),
+    ]);
 
-    return { products, categories: [], brands: [] };
-  }
+    const matchesTerm = (...candidates: (string | undefined)[]) =>
+      candidates.some(candidate => (candidate || '').toLowerCase().includes(term));
+
+    const categoryHits: QuickSearchResults['categories'] = [];
+    for (const category of categories) {
+      if (matchesTerm(category.label, category.labelKa)) {
+        categoryHits.push({
+          name: categoryLabel(category, 'en'),
+          slug: category.slug,
+          type: 'category',
+        });
+      }
+      for (const sub of category.subs) {
+        if (matchesTerm(sub.label, sub.labelKa)) {
+          categoryHits.push({
+            name: subLabel(sub, 'en'),
+            slug: category.slug,
+            subSlug: sub.slug,
+            type: 'subcategory',
+          });
+        }
+      }
+    }
+
+    return {
+      products,
+      categories: categoryHits.slice(0, 4),
+      brands: brands
+        .filter(brand => matchesTerm(brand.name))
+        .slice(0, 3)
+        .map(brand => ({ name: brand.name, slug: brand.slug })),
+    };
+  },
 };

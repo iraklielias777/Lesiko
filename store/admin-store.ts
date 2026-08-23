@@ -82,7 +82,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     };
 
     const [loadedProducts, loadedCategories, loadedBrands, loadedPromo, loadedOrders, loadedCustomers, loadedSettings] = await Promise.all([
-        ProductService.getAllProducts(),
+        ProductService.getAllForAdmin(),
         CategoryService.getCategories(),
         BrandService.getBrands(),
         ContentService.getPromoContent(),
@@ -147,7 +147,7 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   addProduct: async (product) => {
     await ProductService.addProduct(product);
-    const loadedProducts = await ProductService.getAllProducts();
+    const loadedProducts = await ProductService.getAllForAdmin();
     set({ products: loadedProducts });
   },
 

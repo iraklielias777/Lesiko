@@ -65,6 +65,8 @@ export const RegisterPage = () => {
           src="https://images.unsplash.com/photo-1552693673-1bf958298935?auto=format&fit=crop&q=80&w=1200"
           alt=""
           className="absolute inset-0 w-full h-full object-cover opacity-90"
+          loading="lazy"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-16 text-white">
           <h2 className="font-heading text-4xl font-bold mb-4">{t('auth.beginJourney')}</h2>

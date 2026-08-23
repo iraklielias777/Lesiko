@@ -118,25 +118,70 @@ export const DEFAULT_SOCIAL: SocialContent = {
   images: []
 };
 
+/**
+ * `site_content` is eight small rows — hero, promo, skin types, help, footer,
+ * social, store settings, SEO — and the homepage alone needs six of them. Read
+ * one key at a time that was eight round trips before the page could finish,
+ * plus duplicates whenever two components wanted the same block (the footer
+ * copy was fetched by both the Footer and the homepage).
+ *
+ * The whole table is 4.5 KB gzipped, so it travels in a single request and is
+ * cached for the session. Admin writes drop the cache.
+ */
+type ContentBlocks = Record<string, unknown>;
+
+let blockCache: ContentBlocks | null = null;
+let blockInflight: Promise<ContentBlocks> | null = null;
+
+export const invalidateContent = () => {
+  blockCache = null;
+  blockInflight = null;
+};
+
+const fetchBlocks = async (): Promise<ContentBlocks> => {
+  if (!supabase) return {};
+  const { data, error } = await supabase.from('site_content').select('key, content');
+  if (error) {
+    console.error('Error loading site content:', error);
+    return {};
+  }
+  const blocks: ContentBlocks = {};
+  for (const row of data || []) blocks[row.key as string] = row.content;
+  return blocks;
+};
+
+const loadBlocks = (): Promise<ContentBlocks> => {
+  if (blockCache) return Promise.resolve(blockCache);
+  if (!blockInflight) {
+    blockInflight = fetchBlocks()
+      .then(blocks => { blockCache = blocks; blockInflight = null; return blocks; })
+      .catch(err => { blockInflight = null; throw err; });
+  }
+  return blockInflight;
+};
+
+/** Raw block, or undefined when the row does not exist. */
+async function rawBlock(key: string): Promise<unknown> {
+  try {
+    return (await loadBlocks())[key];
+  } catch {
+    return undefined;
+  }
+}
+
 // Every block merges over its default, so a row written by an older build (or
 // hand-edited to drop a field) still renders instead of blanking the page.
 async function readBlock<T>(key: string, fallback: T): Promise<T> {
-  if (!supabase) return fallback;
-
-  const { data, error } = await supabase
-    .from('site_content')
-    .select('content')
-    .eq('key', key)
-    .maybeSingle();
-
-  if (error || !data?.content) return fallback;
-  return { ...fallback, ...(data.content as Partial<T>) } as T;
+  const content = await rawBlock(key);
+  if (!content) return fallback;
+  return { ...fallback, ...(content as Partial<T>) } as T;
 }
 
 async function writeBlock<T>(key: string, content: T): Promise<void> {
   if (!supabase) return;
   const { error } = await supabase.from('site_content').upsert({ key, content });
   if (error) throw error;
+  invalidateContent();
 }
 
 export const ContentService = {
@@ -168,69 +213,26 @@ export const ContentService = {
   updateSeoPages: (content: SeoPages): Promise<void> => writeBlock('seo_pages', content),
 
   getPromoContent: async (): Promise<PromoContent> => {
-    if (!supabase) return DEFAULT_PROMO;
-    
-    const { data, error } = await supabase
-        .from('site_content')
-        .select('content')
-        .eq('key', 'homepage_promo')
-        .single();
-
-    if (error || !data) return DEFAULT_PROMO;
-    return data.content as PromoContent;
+    const content = await rawBlock('homepage_promo');
+    return (content as PromoContent) || DEFAULT_PROMO;
   },
 
-  updatePromoContent: async (content: PromoContent): Promise<void> => {
-    if (!supabase) return;
-    const { error } = await supabase
-        .from('site_content')
-        .upsert({ key: 'homepage_promo', content });
-    
-    if (error) throw error;
-  },
+  updatePromoContent: (content: PromoContent): Promise<void> =>
+    writeBlock('homepage_promo', content),
 
+  // An array, not an object, so it cannot go through readBlock's merge.
   getSkinTypeContent: async (): Promise<SkinTypeContent> => {
-    if (!supabase) return DEFAULT_SKIN_TYPES;
-    
-    const { data, error } = await supabase
-        .from('site_content')
-        .select('content')
-        .eq('key', 'homepage_skin_types')
-        .single();
-
-    if (error || !data) return DEFAULT_SKIN_TYPES;
-    return data.content as SkinTypeContent;
+    const content = await rawBlock('homepage_skin_types');
+    return Array.isArray(content) ? (content as SkinTypeContent) : DEFAULT_SKIN_TYPES;
   },
 
-  updateSkinTypeContent: async (content: SkinTypeContent): Promise<void> => {
-    if (!supabase) return;
-    const { error } = await supabase
-        .from('site_content')
-        .upsert({ key: 'homepage_skin_types', content });
-    
-    if (error) throw error;
-  },
+  updateSkinTypeContent: (content: SkinTypeContent): Promise<void> =>
+    writeBlock('homepage_skin_types', content),
 
-  getStoreSettings: async (): Promise<StoreSettings> => {
-    if (!supabase) return DEFAULT_STORE_SETTINGS;
+  // Merge so a partially-filled row cannot produce NaN totals at checkout.
+  getStoreSettings: (): Promise<StoreSettings> =>
+    readBlock('store_settings', DEFAULT_STORE_SETTINGS),
 
-    const { data, error } = await supabase
-        .from('site_content')
-        .select('content')
-        .eq('key', 'store_settings')
-        .maybeSingle();
-
-    if (error || !data) return DEFAULT_STORE_SETTINGS;
-    // Merge so a partially-filled row cannot produce NaN totals at checkout.
-    return { ...DEFAULT_STORE_SETTINGS, ...(data.content as Partial<StoreSettings>) };
-  },
-
-  updateStoreSettings: async (settings: StoreSettings): Promise<void> => {
-    if (!supabase) return;
-    const { error } = await supabase
-        .from('site_content')
-        .upsert({ key: 'store_settings', content: settings });
-
-    if (error) throw error;
-  }
+  updateStoreSettings: (settings: StoreSettings): Promise<void> =>
+    writeBlock('store_settings', settings)
 };

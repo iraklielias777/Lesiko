@@ -30,6 +30,7 @@ import { Address, Order, SavedAddress, User as UserType } from '../types';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
+import { ProductThumb } from '../components/product/ProductThumb';
 
 type TabType = 'overview' | 'orders' | 'profile' | 'addresses';
 
@@ -288,7 +289,13 @@ export const AccountPage = () => {
                       <div className="flex flex-col md:flex-row gap-6 items-center">
                         <div className="flex -space-x-4 overflow-hidden py-2">
                           {orderList[0].items.map((item, i) => (
-                            <img key={i} src={item.product.images[0]?.url} alt={item.product.name} className="inline-block h-16 w-16 rounded-full ring-2 ring-white object-contain bg-gray-50" />
+                            <ProductThumb
+                              key={i}
+                              product={item.product}
+                              alt={item.product.name}
+                              size={64}
+                              className="inline-block h-16 w-16 rounded-full ring-2 ring-white shrink-0"
+                            />
                           ))}
                         </div>
                         <div className="flex-1 text-center md:text-left">

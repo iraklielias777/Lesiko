@@ -54,10 +54,21 @@
       };
     </script>
 
-    <!-- Fonts -->
+    <!-- Every image, catalogue read and auth call goes to the Supabase origin,
+         so the handshake is worth starting before React has parsed. -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
+
+    <!-- Fonts.
+         Inter carries 700: 166 elements use `font-bold` on body text, and
+         without the real face the browser synthesises it, which smears badly at
+         the 10-11px uppercase sizes this design uses.
+         Montserrat only ever renders at 600 and 700 — 400 and 500 were being
+         downloaded and never used.
+         Noto Sans Georgian keeps its full range but is served behind a
+         unicode-range, so an English visitor never downloads any of it. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Montserrat:wght@400;500;600;700&family=Noto+Sans+Georgian:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@600;700&family=Noto+Sans+Georgian:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
 </head>
   <body class="font-sans text-brand-dark antialiased bg-white">
