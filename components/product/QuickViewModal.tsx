@@ -1,11 +1,39 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useUIStore } from '../../store/ui-store';
 import { ProductDetailView } from './ProductDetailView';
+import { ProductService } from '../../services/product-service';
+import { Product } from '../../types';
 
 export const QuickViewModal = () => {
   const { isQuickViewOpen, quickViewProduct, closeQuickView } = useUIStore();
+  const [detail, setDetail] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isQuickViewOpen || !quickViewProduct) {
+      setDetail(null);
+      return;
+    }
+
+    if (Array.isArray(quickViewProduct.variants)) {
+      setDetail(quickViewProduct);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    ProductService.getProductBySlug(quickViewProduct.slug)
+      .then(full => {
+        if (!cancelled) setDetail(full || quickViewProduct);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [isQuickViewOpen, quickViewProduct]);
 
   if (!isQuickViewOpen || !quickViewProduct) return null;
 
@@ -27,7 +55,13 @@ export const QuickViewModal = () => {
         </button>
 
         <div className="p-6 lg:p-10">
-          <ProductDetailView product={quickViewProduct} />
+          {loading && !detail ? (
+            <div className="h-64 flex items-center justify-center">
+              <div className="animate-spin h-8 w-8 border-4 border-brand-green border-t-transparent rounded-full" />
+            </div>
+          ) : (
+            <ProductDetailView product={detail || quickViewProduct} />
+          )}
         </div>
       </div>
     </div>

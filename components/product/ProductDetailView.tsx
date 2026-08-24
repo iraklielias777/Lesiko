@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Star, Truck, ShieldCheck, RefreshCw, Minus, Plus, Heart, Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Product, ProductVariant } from '../../types';
@@ -9,7 +9,7 @@ import { useWishlistStore } from '../../store/wishlist-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { imageSrcSet, imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
-import { fitClass, frameColor, resizeOf } from '../../lib/product-image';
+import { defaultVariantOf, fitClass, frameColor, galleryFor, galleryIndexFor, resizeOf } from '../../lib/product-image';
 
 /**
  * Mux Player is a web-component bundle that only matters to a product with a
@@ -21,16 +21,15 @@ const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 interface ProductDetailViewProps {
   product: Product;
   onImageClick?: (id: string) => void;
+  onSelectionChange?: (state: { variant: ProductVariant | null; price: number; stock: number }) => void;
 }
 
-export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product }) => {
+export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, onSelectionChange }) => {
   const fmt = useFormatPrice();
   const { t, i18n } = useTranslation();
   
   // -1 represents video, 0+ represents image index
   const [activeMediaIndex, setActiveMediaIndex] = useState(0);
-  // Variant photo not present in product.images — show as hero without mutating the gallery.
-  const [variantImageOverride, setVariantImageOverride] = useState<string | null>(null);
   
   const [quantity, setQuantity] = useState(1);
   const [activeTab, setActiveTab] = useState<'desc' | 'ingredients'>('desc');
@@ -48,39 +47,32 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   const displayDesc = i18n.language === 'ka' ? (product.descriptionKa || product.description) : product.description;
 
   const applyVariantMedia = (variant: ProductVariant | null) => {
-    if (!variant?.imageUrl) {
-      setVariantImageOverride(null);
-      return;
-    }
-    const idx = product.images.findIndex((img) => img.url === variant.imageUrl);
-    if (idx >= 0) {
-      setActiveMediaIndex(idx);
-      setVariantImageOverride(null);
-    } else {
-      setVariantImageOverride(variant.imageUrl);
-    }
+    const next = galleryFor(product, variant);
+    setActiveMediaIndex(galleryIndexFor(next, variant));
   };
 
   // Hard reset per product so gallery/variant state cannot leak across SKUs.
   useEffect(() => {
     setQuantity(1);
     setIsDescExpanded(false);
-    setActiveMediaIndex(0);
-    setVariantImageOverride(null);
 
-    if (product.variants && product.variants.length > 0) {
-      const first = product.variants[0];
-      setSelectedVariant(first);
-      applyVariantMedia(first);
-    } else {
-      setSelectedVariant(null);
-    }
+    const initial = defaultVariantOf(product);
+    setSelectedVariant(initial);
+    applyVariantMedia(initial);
   }, [product.id]);
 
   // Determine current price and stock based on variant selection
   const currentPrice = selectedVariant?.price || product.price;
   const currentStock = selectedVariant ? selectedVariant.inventoryQuantity : product.inventoryQuantity;
   const isOutOfStock = currentStock === 0;
+  const visibleGallery = galleryFor(product, selectedVariant);
+
+  const onSelectionChangeRef = useRef(onSelectionChange);
+  onSelectionChangeRef.current = onSelectionChange;
+
+  useEffect(() => {
+    onSelectionChangeRef.current?.({ variant: selectedVariant, price: currentPrice, stock: currentStock });
+  }, [selectedVariant, currentPrice, currentStock]);
 
   const handleAddToCart = () => {
       addItem(product, quantity, selectedVariant || undefined);
@@ -92,23 +84,22 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
   };
 
   const selectGalleryImage = (idx: number) => {
-    setVariantImageOverride(null);
     setActiveMediaIndex(idx);
   };
 
-  const isVideoActive = !variantImageOverride && activeMediaIndex === -1 && !!product.videoPlaybackId;
+  const isVideoActive = activeMediaIndex === -1 && !!product.videoPlaybackId;
   const activeImage =
-    !isVideoActive && !variantImageOverride && product.images.length > 0
-      ? product.images[Math.min(Math.max(activeMediaIndex, 0), product.images.length - 1)]
+    !isVideoActive && visibleGallery.length > 0
+      ? visibleGallery[Math.min(Math.max(activeMediaIndex, 0), visibleGallery.length - 1)]
       : undefined;
-  // The variant override is a bare URL; recover its row so the stage can use
-  // the backdrop and fit recorded for it.
-  const heroImage = variantImageOverride
-    ? product.images.find((img) => img.url === variantImageOverride)
-    : activeImage;
-  const heroUrl = variantImageOverride || activeImage?.url;
-  const heroAlt = variantImageOverride
-    ? `${displayName}${selectedVariant?.name ? ` — ${selectedVariant.name}` : ''}`
+  const orphanVariantUrl =
+    selectedVariant?.imageUrl && !visibleGallery.some(img => img.url === selectedVariant.imageUrl)
+      ? selectedVariant.imageUrl
+      : undefined;
+  const heroImage = activeImage || product.images.find(img => img.url === orphanVariantUrl);
+  const heroUrl = activeImage?.url || orphanVariantUrl;
+  const heroAlt = selectedVariant
+    ? `${displayName} — ${selectedVariant.name}`
     : (activeImage?.altText || product.name);
   const hasActiveImage = !!heroUrl;
 
@@ -162,14 +153,12 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
         {/* Thumbnails — fixed size, so a product with two images does not get
             thumbnails twice the size of one with five. */}
         <div className="flex flex-wrap gap-3">
-          {product.images.map((img, idx) => (
+          {visibleGallery.map((img, idx) => (
             <button 
               key={img.id}
               onClick={() => selectGalleryImage(idx)}
               className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
-                !isVideoActive && !variantImageOverride && activeMediaIndex === idx
-                  ? 'border-brand-green ring-1 ring-brand-green'
-                  : variantImageOverride && img.url === variantImageOverride
+                !isVideoActive && activeMediaIndex === idx
                   ? 'border-brand-green ring-1 ring-brand-green'
                   : 'border-transparent hover:border-gray-200'
               }`}
@@ -188,7 +177,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
           {/* Video Thumbnail */}
           {product.videoPlaybackId && (
              <button
-                onClick={() => { setVariantImageOverride(null); setActiveMediaIndex(-1); }}
+                onClick={() => { setActiveMediaIndex(-1); }}
                 className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all bg-black flex items-center justify-center relative group ${isVideoActive ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-600'}`}
              >
                 <img 
@@ -263,8 +252,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
                                 selectedVariant?.id === variant.id
                                 ? 'border-brand-green bg-brand-green/10 text-brand-dark ring-1 ring-brand-green'
                                 : 'border-gray-200 text-gray-600 hover:border-gray-300 bg-white'
-                            } ${variant.inventoryQuantity === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                            disabled={variant.inventoryQuantity === 0}
+                            } ${variant.inventoryQuantity === 0 ? 'opacity-60' : ''}`}
                         >
                             {variant.name}
                             {variant.inventoryQuantity === 0 && (

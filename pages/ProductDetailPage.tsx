@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ProductService } from '../services/product-service';
-import { Product } from '../types';
+import { Product, ProductVariant } from '../types';
 import { ProductCard } from '../components/product/ProductCard';
 import { ProductDetailView } from '../components/product/ProductDetailView';
 import { RecentlyViewed } from '../components/product/RecentlyViewed';
@@ -27,6 +27,7 @@ export const ProductDetailPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selection, setSelection] = useState<{ variant: ProductVariant | null; price: number; stock: number } | null>(null);
   
   const addRecentlyViewed = useRecentlyViewedStore((state) => state.addProduct);
   const addItem = useCartStore((state) => state.addItem);
@@ -153,7 +154,7 @@ export const ProductDetailPage = () => {
       <div className="container mx-auto px-4 py-10">
         {/* Main Product View (Reused) */}
         <div className="mb-20">
-          <ProductDetailView key={product.id} product={product} />
+          <ProductDetailView key={product.id} product={product} onSelectionChange={setSelection} />
         </div>
 
         {/* Related Products */}
@@ -174,21 +175,23 @@ export const ProductDetailPage = () => {
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] md:hidden z-40 animate-slide-in-up">
          <div className="flex gap-4 items-center">
             <div className="flex-1">
-                <p className="text-xs text-gray-500 line-clamp-1">{product.brand.name}</p>
+                <p className="text-xs text-gray-500 line-clamp-1">
+                  {product.brand.name}{selection?.variant ? ` · ${selection.variant.name}` : ''}
+                </p>
                 <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-900 text-lg">{fmt(product.price)}</span>
-                    {product.compareAtPrice && (
+                    <span className="font-bold text-gray-900 text-lg">{fmt(selection?.price ?? product.price)}</span>
+                    {product.compareAtPrice && !selection?.variant && (
                         <span className="text-xs text-gray-400 line-through">{fmt(product.compareAtPrice)}</span>
                     )}
                 </div>
             </div>
             <Button 
-                onClick={() => addItem(product)} 
-                disabled={product.inventoryQuantity === 0}
+                onClick={() => addItem(product, 1, selection?.variant || undefined)} 
+                disabled={(selection?.stock ?? product.inventoryQuantity) === 0}
                 className="flex-1 shadow-lg shadow-brand-green/20"
                 leftIcon={<ShoppingBag className="w-4 h-4" />}
             >
-                {product.inventoryQuantity === 0 ? t('common.outOfStock') : t('common.addToCart')}
+                {(selection?.stock ?? product.inventoryQuantity) === 0 ? t('common.outOfStock') : t('common.addToCart')}
             </Button>
          </div>
       </div>

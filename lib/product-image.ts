@@ -1,4 +1,4 @@
-import { Product, ProductImage } from '../types';
+import { Product, ProductImage, ProductVariant } from '../types';
 import { ImageResize } from './image-url';
 
 /**
@@ -20,6 +20,72 @@ export const LEGACY_FRAME = '#F9FAFB';
 
 export const primaryImageOf = (product: Pick<Product, 'images'>): ProductImage | undefined =>
   product.images?.find(img => img.isPrimary) || product.images?.[0];
+
+/** Canonical keys stored on `products.tags` and used by the skin-type filter. */
+export const SKIN_TYPE_KEYS = ['normal', 'dry', 'oily', 'combination', 'sensitive'] as const;
+
+export const isSkinTypeKey = (tag: string): boolean =>
+  SKIN_TYPE_KEYS.includes(tag.trim().toLowerCase() as (typeof SKIN_TYPE_KEYS)[number]);
+
+export const claimedUrls = (product: Pick<Product, 'variants'>): Set<string> => {
+  const urls = new Set<string>();
+  for (const variant of product.variants || []) {
+    if (variant.imageUrl) urls.add(variant.imageUrl);
+  }
+  return urls;
+};
+
+/**
+ * Legacy rows only stored `variant.imageUrl`. Treat a matching gallery URL as
+ * owned by that variant so the storefront filters correctly before the next save.
+ */
+export const withVariantOwnership = (
+  product: Pick<Product, 'images' | 'variants'>,
+): ProductImage[] => {
+  const urlToVariant = new Map<string, string>();
+  for (const variant of product.variants || []) {
+    if (variant.imageUrl) urlToVariant.set(variant.imageUrl, variant.id);
+  }
+  return (product.images || []).map(img => {
+    if (img.variantId) return img;
+    const inferred = urlToVariant.get(img.url);
+    return inferred ? { ...img, variantId: inferred } : img;
+  });
+};
+
+/**
+ * Photos the shopper should see for the selected option: that variant's shots,
+ * plus unassigned product-level images. Other variants' photos stay hidden.
+ * A product with no variants returns the full gallery.
+ */
+export const galleryFor = (
+  product: Pick<Product, 'images' | 'variants'>,
+  variant?: ProductVariant | null,
+): ProductImage[] => {
+  if (!product.variants?.length) return product.images || [];
+  const images = withVariantOwnership(product);
+  const claimed = claimedUrls(product);
+  return images.filter(img => {
+    if (variant && (img.variantId === variant.id || img.url === variant.imageUrl)) return true;
+    if (img.variantId) return false;
+    if (claimed.has(img.url)) return false;
+    return true;
+  });
+};
+
+export const defaultVariantOf = (product: Pick<Product, 'variants'>): ProductVariant | null => {
+  const variants = product.variants || [];
+  if (!variants.length) return null;
+  return variants.find(v => v.inventoryQuantity > 0) || variants[0];
+};
+
+export const galleryIndexFor = (gallery: ProductImage[], variant?: ProductVariant | null): number => {
+  if (variant?.imageUrl) {
+    const idx = gallery.findIndex(img => img.url === variant.imageUrl);
+    if (idx >= 0) return idx;
+  }
+  return 0;
+};
 
 export const frameColor = (image?: Pick<ProductImage, 'bgColor'>): string =>
   image?.bgColor || LEGACY_FRAME;

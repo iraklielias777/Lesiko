@@ -2,6 +2,7 @@
 import { Product } from '../types';
 import { supabase } from '../lib/supabase';
 import { getBrandIndex } from './brand-service';
+import { withVariantOwnership } from '../lib/product-image';
 
 /**
  * Catalogue reads.
@@ -108,14 +109,17 @@ const mapProduct = (p: any): Product => {
         slug: categoryData.slug
     } : { id: 'unknown', name: 'General', slug: 'general' },
     subCategory: p.sub_category,
-    images: Array.isArray(p.images) ? p.images : [],
+    images: withVariantOwnership({
+      images: Array.isArray(p.images) ? p.images : [],
+      variants: Array.isArray(p.variants) ? p.variants : [],
+    }),
     videoPlaybackId: p.video_playback_id,
     isNew: p.is_new,
     isTrending: p.is_trending,
     averageRating: Number(p.average_rating || 0),
     reviewCount: p.review_count || 0,
     tags: Array.isArray(p.tags) ? p.tags : [],
-    variants: Array.isArray(p.variants) ? p.variants : [],
+    variants: Array.isArray(p.variants) ? p.variants : undefined,
     metaTitle: p.meta_title,
     metaTitleKa: p.meta_title_ka,
     metaDescription: p.meta_description,

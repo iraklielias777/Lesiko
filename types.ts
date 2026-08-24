@@ -68,6 +68,11 @@ export interface ProductImage {
    * rather than letterbox. Defaults to `contain`.
    */
   fit?: 'contain' | 'cover';
+  /**
+   * When set, this photo belongs to that variant and is hidden from every other
+   * option's gallery. Omitted images are product-level and show for every option.
+   */
+  variantId?: string;
 }
 
 export interface Brand extends EntitySeo {

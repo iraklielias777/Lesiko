@@ -4,13 +4,15 @@ import { Plus, Search, Edit2, Trash2, X, UploadCloud, Link as LinkIcon, Tag, Sli
 import { useAdminStore } from '../../store/admin-store';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Product, ProductVariant } from '../../types';
+import { Product, ProductImage, ProductVariant, SkinTypeContent } from '../../types';
 import { useToastStore } from '../../store/toast-store';
 import { useTranslation } from 'react-i18next';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { StorageService, UploadedImage } from '../../services/storage-service';
+import { ContentService } from '../../services/content-service';
 import { LOW_FILL_WARNING, SOFT_UPSCALE_WARNING } from '../../lib/image-normalize';
 import { imageUrl } from '../../lib/image-url';
+import { isSkinTypeKey } from '../../lib/product-image';
 import { useFormatPrice } from '../../lib/format';
 import { useSettingsStore } from '../../store/settings-store';
 import { EntitySeoFields } from '../../components/admin/SeoFields';
@@ -23,6 +25,24 @@ const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 
 const IMAGE_ASPECT_GUIDE =
   'Upload any framing — the product is detected, cropped out of its backdrop and re-centred on a 1200×1200 square automatically, so every card matches. What matters is resolution: aim for the product itself to be at least 800px on its longest edge. A photo shot on a coloured or grey sweep keeps that colour; the card frame matches it.';
+
+const stripVariantId = (img: ProductImage): ProductImage => {
+  if (!img.variantId) return img;
+  const { variantId: _removed, ...rest } = img;
+  return rest;
+};
+
+const syncVariantPrimaries = (images: ProductImage[], variants: ProductVariant[]): ProductVariant[] =>
+  variants.map(variant => {
+    const owned = images.filter(img => img.variantId === variant.id).map(img => img.url);
+    if (!owned.length) {
+      if (!variant.imageUrl) return variant;
+      const { imageUrl: _removed, ...rest } = variant;
+      return rest;
+    }
+    const imageUrl = variant.imageUrl && owned.includes(variant.imageUrl) ? variant.imageUrl : owned[0];
+    return { ...variant, imageUrl };
+  });
 
 /**
  * Says what happened to a freshly uploaded photo. Only shown for this session's
@@ -91,6 +111,7 @@ export const AdminProducts = () => {
   // Not persisted: it describes the source asset, not the stored product.
   const [imageReports, setImageReports] = useState<Record<string, UploadedImage>>({});
   const addToast = useToastStore(s => s.addToast);
+  const [skinTypeOptions, setSkinTypeOptions] = useState<SkinTypeContent>([]);
 
   const [formData, setFormDataRaw] = useState<Partial<Product>>({
     name: '', nameKa: '', slug: '', price: 0, compareAtPrice: 0,
@@ -110,6 +131,10 @@ export const AdminProducts = () => {
   const [isOnSale, setIsOnSale] = useState(false);
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    ContentService.getSkinTypeContent().then(setSkinTypeOptions).catch(() => setSkinTypeOptions([]));
+  }, []);
 
   const subCategoryOptions = categories.find(c => c.slug === formData.category?.slug)?.subs || [];
 
@@ -266,14 +291,8 @@ export const AdminProducts = () => {
       }
       setFormData(prev => {
         const images = (prev.images || []).filter(i => i.id !== img.id);
-        // Removing the primary would otherwise leave the product with none.
         if (images.length && !images.some(i => i.isPrimary)) images[0].isPrimary = true;
-        // Drop variant links that pointed at the deleted gallery file.
-        const variants = (prev.variants || []).map(v => {
-          if (v.imageUrl !== img.url) return v;
-          const { imageUrl: _removed, ...rest } = v;
-          return rest;
-        });
+        const variants = syncVariantPrimaries(images, prev.variants || []);
         return { ...prev, images, variants };
       });
     } catch (e) {
@@ -313,11 +332,34 @@ export const AdminProducts = () => {
     setFormData(prev => ({ ...prev, brand }));
   };
 
+  const toggleSkinType = (key: string, on: boolean) => {
+    const k = key.toLowerCase();
+    setFormData(prev => {
+      const tags = (prev.tags || []).filter(t => t.trim().toLowerCase() !== k);
+      return { ...prev, tags: on ? [...tags, k] : tags };
+    });
+  };
+
+  const merchTagsValue = (formData.tags || []).filter(tag => !isSkinTypeKey(tag)).join(', ');
+
   const updateVariant = (index: number, patch: Partial<ProductVariant>) => {
     setFormData(prev => ({
       ...prev,
       variants: (prev.variants || []).map((v, i) => (i === index ? { ...v, ...patch } : v)),
     }));
+  };
+
+  const toggleVariantImage = (index: number, imageId: string) => {
+    setFormData(prev => {
+      const variant = (prev.variants || [])[index];
+      if (!variant) return prev;
+      const images = (prev.images || []).map(img => {
+        if (img.id !== imageId) return img;
+        if (img.variantId === variant.id) return stripVariantId(img);
+        return { ...img, variantId: variant.id };
+      });
+      return { ...prev, images, variants: syncVariantPrimaries(images, prev.variants || []) };
+    });
   };
 
   const handleVariantImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -327,8 +369,25 @@ export const AdminProducts = () => {
     setIsUploading(true);
     try {
       const uploaded = await StorageService.uploadProductImage(file);
-      addImageToForm(uploaded);
-      updateVariant(index, { imageUrl: uploaded.url });
+      const id = crypto.randomUUID();
+      setImageReports(prev => ({ ...prev, [id]: uploaded }));
+      setFormData(prev => {
+        const variant = (prev.variants || [])[index];
+        if (!variant) return prev;
+        const images: ProductImage[] = [
+          ...(prev.images || []),
+          {
+            id,
+            url: uploaded.url,
+            altText: prev.name?.trim() || '',
+            isPrimary: (prev.images?.length || 0) === 0,
+            bgColor: uploaded.bgColor,
+            fit: uploaded.fit,
+            variantId: variant.id,
+          },
+        ];
+        return { ...prev, images, variants: syncVariantPrimaries(images, prev.variants || []) };
+      });
       addToast('Variant image uploaded');
     } catch {
       addToast("Failed to upload image. Make sure 'media' bucket exists.", 'error');
@@ -340,14 +399,14 @@ export const AdminProducts = () => {
   };
 
   const clearVariantImage = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      variants: (prev.variants || []).map((v, i) => {
-        if (i !== index) return v;
-        const { imageUrl: _removed, ...rest } = v;
-        return rest;
-      }),
-    }));
+    setFormData(prev => {
+      const variant = (prev.variants || [])[index];
+      if (!variant) return prev;
+      const images = (prev.images || []).map(img =>
+        img.variantId === variant.id ? stripVariantId(img) : img,
+      );
+      return { ...prev, images, variants: syncVariantPrimaries(images, prev.variants || []) };
+    });
   };
 
   const addVariant = () => {
@@ -361,10 +420,14 @@ export const AdminProducts = () => {
   };
 
   const removeVariant = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      variants: (prev.variants || []).filter((_, i) => i !== index),
-    }));
+    setFormData(prev => {
+      const variant = (prev.variants || [])[index];
+      const images = variant
+        ? (prev.images || []).map(img => img.variantId === variant.id ? stripVariantId(img) : img)
+        : prev.images || [];
+      const variants = (prev.variants || []).filter((_, i) => i !== index);
+      return { ...prev, images, variants: syncVariantPrimaries(images, variants) };
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -374,6 +437,14 @@ export const AdminProducts = () => {
       // looks like a real image everywhere the product is listed.
       if (!formData.images?.length) {
         addToast('Add at least one product image before saving', 'error');
+        return;
+      }
+      if (!brands.length) {
+        addToast('Add a brand under Brands before saving a product', 'error');
+        return;
+      }
+      if (!formData.brand?.id || formData.brand.id === 'unknown') {
+        addToast('Choose a brand before saving', 'error');
         return;
       }
 
@@ -408,6 +479,21 @@ export const AdminProducts = () => {
           return cleaned;
         });
 
+      const skinKeys = new Set(skinTypeOptions.map(s => s.key.toLowerCase()));
+      const merchTags = (formData.tags || [])
+        .map(tag => tag.trim())
+        .filter(tag => tag && !skinKeys.has(tag.toLowerCase()) && !isSkinTypeKey(tag));
+      const skinTags = (formData.tags || [])
+        .map(tag => tag.trim().toLowerCase())
+        .filter(tag => skinKeys.has(tag) || isSkinTypeKey(tag));
+      const tags = [...new Set([...skinTags, ...merchTags])];
+
+      const keptVariantIds = new Set(variants.map(v => v.id));
+      const images = (formData.images || []).map(img =>
+        img.variantId && !keptVariantIds.has(img.variantId) ? stripVariantId(img) : img,
+      );
+      const syncedVariants = syncVariantPrimaries(images, variants);
+
       const productPayload: Product = {
           ...formData,
           id: editingId || crypto.randomUUID(),
@@ -415,9 +501,9 @@ export const AdminProducts = () => {
           price: Number(formData.price),
           compareAtPrice: isOnSale ? Number(formData.compareAtPrice) : undefined,
           inventoryQuantity: Number(formData.inventoryQuantity),
-          variants,
-          tags: (formData.tags || []).map(tag => tag.trim()).filter(Boolean),
-          images: formData.images || []
+          variants: syncedVariants,
+          tags,
+          images,
       } as Product;
 
       setIsSaving(true);
@@ -692,7 +778,8 @@ export const AdminProducts = () => {
                             </div>
                             <div>
                                 <label className="block text-xs font-bold uppercase mb-2">Brand</label>
-                                <select className="w-full p-3 border rounded-lg text-sm bg-white" value={formData.brand?.id || ''} onChange={e => selectBrand(e.target.value)}>
+                                <select className="w-full p-3 border rounded-lg text-sm bg-white" value={formData.brand?.id && formData.brand.id !== 'unknown' ? formData.brand.id : ''} onChange={e => selectBrand(e.target.value)} required>
+                                    <option value="" disabled>{brands.length ? 'Select a brand' : 'Add a brand first'}</option>
                                     {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                 </select>
                             </div>
@@ -736,7 +823,7 @@ export const AdminProducts = () => {
                                 </button>
                             </div>
                             <p className="text-[11px] text-gray-400 leading-relaxed">
-                              Optional photo per variant shows on the product detail page when that option is selected. Pick from the product gallery above, or upload a new one (it is also added to the gallery). {IMAGE_ASPECT_GUIDE}
+                              Assigned photos show only for that option on the product page. Shared gallery photos (not assigned to a variant) show for every option. Click a thumbnail to assign or unassign; the first assigned photo is the primary. {IMAGE_ASPECT_GUIDE}
                             </p>
                             {(formData.variants || []).length === 0 && (
                                 <p className="text-xs text-gray-400">No variants. The product is sold as a single option using the inventory above.</p>
@@ -769,20 +856,24 @@ export const AdminProducts = () => {
                                           )}
                                         </div>
                                         <div className="flex-1 min-w-[180px] space-y-2">
-                                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Variant photo</p>
+                                          <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Variant photos</p>
                                           {(formData.images || []).length > 0 && (
                                             <div className="flex flex-wrap gap-1.5">
-                                              {(formData.images || []).map(img => (
+                                              {(formData.images || []).map(img => {
+                                                const assignedHere = img.variantId === variant.id || (!img.variantId && img.url === variant.imageUrl);
+                                                const ownedElsewhere = !!img.variantId && img.variantId !== variant.id;
+                                                return (
                                                 <button
                                                   key={img.id}
                                                   type="button"
-                                                  title="Use this gallery image"
-                                                  onClick={() => updateVariant(index, { imageUrl: img.url })}
-                                                  className={`w-9 h-9 rounded-md overflow-hidden border-2 bg-gray-50 ${variant.imageUrl === img.url ? 'border-brand-green ring-1 ring-brand-green' : 'border-transparent hover:border-gray-200'}`}
+                                                  title={ownedElsewhere ? 'Assigned to another variant — click to move' : assignedHere ? 'Unassign from this variant' : 'Assign to this variant'}
+                                                  onClick={() => toggleVariantImage(index, img.id)}
+                                                  className={`w-9 h-9 rounded-md overflow-hidden border-2 bg-gray-50 ${assignedHere ? 'border-brand-green ring-1 ring-brand-green' : ownedElsewhere ? 'border-gray-200 opacity-40 hover:opacity-100' : 'border-transparent hover:border-gray-200'}`}
                                                 >
                                                   <img src={imageUrl(img.url, { width: 72 })} alt="" className="w-full h-full object-contain p-0.5" />
                                                 </button>
-                                              ))}
+                                                );
+                                              })}
                                             </div>
                                           )}
                                           <div className="flex flex-wrap gap-2">
@@ -797,7 +888,7 @@ export const AdminProducts = () => {
                                             >
                                               Upload new
                                             </button>
-                                            {variant.imageUrl && (
+                                            {((formData.images || []).some(img => img.variantId === variant.id) || variant.imageUrl) && (
                                               <button
                                                 type="button"
                                                 onClick={() => clearVariantImage(index)}
@@ -821,13 +912,32 @@ export const AdminProducts = () => {
                         </div>
 
                         <div className="bg-gray-50 p-4 rounded-xl space-y-4">
+                            <h4 className="text-xs font-bold uppercase text-gray-500">Skin types</h4>
+                            <div className="flex flex-wrap gap-x-5 gap-y-2">
+                              {skinTypeOptions.map(type => (
+                                <Checkbox
+                                  key={type.key}
+                                  label={type.name}
+                                  checked={(formData.tags || []).some(tag => tag.trim().toLowerCase() === type.key.toLowerCase())}
+                                  onChange={on => toggleSkinType(type.key, on)}
+                                />
+                              ))}
+                            </div>
+                            <p className="text-xs text-gray-400">These drive the storefront skin-type filter. Pick every type this product is sold for.</p>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-xl space-y-4">
                             <h4 className="text-xs font-bold uppercase text-gray-500 flex items-center gap-2"><Tag className="w-3.5 h-3.5" /> Tags</h4>
                             <Input
-                                placeholder="Comma separated, e.g. serum, dry, brightening"
-                                value={(formData.tags || []).join(', ')}
-                                onChange={e => setFormData({...formData, tags: e.target.value.split(',')})}
+                                placeholder="Comma separated, e.g. serum, brightening"
+                                value={merchTagsValue}
+                                onChange={e => {
+                                  const merch = e.target.value.split(',');
+                                  const skin = (formData.tags || []).filter(tag => isSkinTypeKey(tag));
+                                  setFormData({ ...formData, tags: [...skin, ...merch] });
+                                }}
                             />
-                            <p className="text-xs text-gray-400">Skin-type tags (normal, oily, dry, combination, sensitive) drive the storefront skin-type filter.</p>
+                            <p className="text-xs text-gray-400">Merchandising words only. Skin types are chosen above.</p>
                         </div>
 
                         <div className="bg-gray-50 p-4 rounded-xl space-y-4">

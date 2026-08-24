@@ -336,7 +336,7 @@ export const HomePage = () => {
              {skinTypeContent.map((type, idx) => {
                  const Icon = SKIN_TYPE_ICONS[type.key.toLowerCase()] || Activity;
                  return (
-                     <Link key={idx} to={`/products?skinType=${encodeURIComponent(type.name)}`} className="group relative min-w-[260px] md:min-w-0 h-[400px] md:h-[450px] rounded-2xl overflow-hidden snap-start transition-all duration-700 hover:shadow-2xl hover:shadow-brand-green/10">
+                     <Link key={idx} to={`/products?skinType=${encodeURIComponent(type.key)}`} className="group relative min-w-[260px] md:min-w-0 h-[400px] md:h-[450px] rounded-2xl overflow-hidden snap-start transition-all duration-700 hover:shadow-2xl hover:shadow-brand-green/10">
                         <div className="absolute inset-0 overflow-hidden">
                             <img
                                 src={imageUrl(type.image, { width: 700, height: 1050, resize: 'cover' })}
