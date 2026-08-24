@@ -167,8 +167,8 @@ export const HomePage = () => {
         <div className="absolute inset-0 md:hidden z-0">
             {heroImage && (
               <img
-                src={imageUrl(heroImage, { width: HERO_WIDTHS[2] })}
-                srcSet={imageSrcSet(heroImage, HERO_WIDTHS)}
+                src={imageUrl(heroImage, { width: HERO_WIDTHS[2], height: 1600, resize: 'cover' })}
+                srcSet={imageSrcSet(heroImage, HERO_WIDTHS, { height: 1600, resize: 'cover' })}
                 sizes={HERO_SIZES}
                 alt={heroText.title}
                 className="w-full h-full object-cover"
@@ -202,8 +202,8 @@ export const HomePage = () => {
         <div className="hidden md:block w-1/2 h-full relative overflow-hidden">
           {heroImage && (
             <img
-              src={imageUrl(heroImage, { width: HERO_WIDTHS[2] })}
-              srcSet={imageSrcSet(heroImage, HERO_WIDTHS)}
+              src={imageUrl(heroImage, { width: HERO_WIDTHS[2], height: 1600, resize: 'cover' })}
+              srcSet={imageSrcSet(heroImage, HERO_WIDTHS, { height: 1600, resize: 'cover' })}
               sizes={HERO_SIZES}
               alt=""
               aria-hidden="true"
@@ -238,8 +238,8 @@ export const HomePage = () => {
                   <Link to={`/category/${cat.slug}`} className="relative aspect-[4/3] md:aspect-square overflow-hidden group block">
                     {cat.image ? (
                       <img
-                        src={imageUrl(cat.image, { width: 500 })}
-                        srcSet={imageSrcSet(cat.image, [300, 500, 800])}
+                        src={imageUrl(cat.image, { width: 500, height: 500, resize: 'cover' })}
+                        srcSet={imageSrcSet(cat.image, [300, 500, 800], { height: 800, resize: 'cover' })}
                         sizes="(min-width: 1024px) 16vw, (min-width: 768px) 33vw, 260px"
                         alt={categoryLabel(cat, i18n.language)}
                         className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
@@ -339,8 +339,8 @@ export const HomePage = () => {
                      <Link key={idx} to={`/products?skinType=${encodeURIComponent(type.name)}`} className="group relative min-w-[260px] md:min-w-0 h-[400px] md:h-[450px] rounded-2xl overflow-hidden snap-start transition-all duration-700 hover:shadow-2xl hover:shadow-brand-green/10">
                         <div className="absolute inset-0 overflow-hidden">
                             <img
-                                src={imageUrl(type.image, { width: 700 })}
-                                srcSet={imageSrcSet(type.image, [400, 700, 1000])}
+                                src={imageUrl(type.image, { width: 700, height: 1050, resize: 'cover' })}
+                                srcSet={imageSrcSet(type.image, [400, 700, 1000], { height: 1500, resize: 'cover' })}
                                 sizes="(min-width: 1024px) 20vw, (min-width: 640px) 45vw, 90vw"
                                 alt={type.name}
                                 className="w-full h-full object-cover transition-transform duration-[1.5s] ease-out group-hover:scale-110 opacity-80"
@@ -382,8 +382,8 @@ export const HomePage = () => {
                   <div className="absolute inset-0">
                     {brand.image ? (
                       <img
-                        src={imageUrl(brand.image, { width: 800 })}
-                        srcSet={imageSrcSet(brand.image, [500, 800, 1200])}
+                        src={imageUrl(brand.image, { width: 800, height: 1000, resize: 'cover' })}
+                        srcSet={imageSrcSet(brand.image, [500, 800, 1200], { height: 1500, resize: 'cover' })}
                         sizes="(min-width: 768px) 45vw, 90vw"
                         alt={brand.name}
                         className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
@@ -414,8 +414,8 @@ export const HomePage = () => {
             <div className="container mx-auto px-4 relative z-10 flex flex-col md:flex-row items-center gap-12 md:gap-16">
             <div className="flex-1 relative h-[300px] md:h-[500px] w-full max-w-lg mx-auto md:order-2 group">
                 <img
-                    src={imageUrl(promoContent.image, { width: 900 })}
-                    srcSet={imageSrcSet(promoContent.image, [600, 900, 1300])}
+                    src={imageUrl(promoContent.image, { width: 900, height: 900, resize: 'cover' })}
+                    srcSet={imageSrcSet(promoContent.image, [600, 900, 1300], { height: 1300, resize: 'cover' })}
                     sizes="(min-width: 768px) 45vw, 90vw"
                     alt={promoText.title}
                     className="absolute inset-0 w-full h-full object-cover rounded-md shadow-2xl transition-transform duration-1000 group-hover:scale-105"
@@ -451,8 +451,8 @@ export const HomePage = () => {
                     className="relative group overflow-hidden aspect-square cursor-pointer bg-gray-100 rounded-lg block"
                   >
                       <img
-                        src={imageUrl(url, { width: 400 })}
-                        srcSet={imageSrcSet(url, [300, 400, 600])}
+                        src={imageUrl(url, { width: 400, resize: 'cover' })}
+                        srcSet={imageSrcSet(url, [300, 400, 600], { resize: 'cover' })}
                         sizes="(min-width: 768px) 20vw, 50vw"
                         alt={`${social.handle} post ${i + 1}`}
                         className="w-full h-full object-cover transition-transform duration-1000 group-hover:scale-110"

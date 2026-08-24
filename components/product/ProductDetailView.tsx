@@ -9,7 +9,7 @@ import { useWishlistStore } from '../../store/wishlist-store';
 import { useSettingsStore } from '../../store/settings-store';
 import { imageSrcSet, imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
-import { fitClass, frameColor } from '../../lib/product-image';
+import { fitClass, frameColor, resizeOf } from '../../lib/product-image';
 
 /**
  * Mux Player is a web-component bundle that only matters to a product with a
@@ -142,8 +142,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
                 needs to see the whole bottle and its label, whatever the ratio. */
              <img
                 key={heroUrl}
-                src={imageUrl(heroUrl!, { width: 560 })}
-                srcSet={imageSrcSet(heroUrl!, [400, 560, 840, 1120])}
+                src={imageUrl(heroUrl!, { width: 560, resize: resizeOf(heroImage) })}
+                srcSet={imageSrcSet(heroUrl!, [400, 560, 840, 1120], { resize: resizeOf(heroImage) })}
                 sizes="(min-width: 768px) min(560px, 70dvh), min(100vw, 70dvh)"
                 alt={heroAlt}
                 width={1200}
@@ -175,7 +175,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product })
               }`}
             >
               <img
-                src={imageUrl(img.url, { width: 160 })}
+                src={imageUrl(img.url, { width: 160, resize: resizeOf(img) })}
                 alt={img.altText || `${product.name} thumbnail`}
                 className={`w-full h-full ${fitClass(img)} ${img.bgColor ? '' : 'bg-gray-50 p-1'}`}
                 style={img.bgColor ? { backgroundColor: img.bgColor } : undefined}

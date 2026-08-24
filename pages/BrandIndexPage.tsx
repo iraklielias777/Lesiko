@@ -78,8 +78,8 @@ export const BrandIndexPage = () => {
                 <div className="aspect-[4/3] bg-gray-50 overflow-hidden">
                   {brand.image ? (
                     <img
-                      src={imageUrl(brand.image, { width: 480 })}
-                      srcSet={`${imageUrl(brand.image, { width: 320 })} 320w, ${imageUrl(brand.image, { width: 640 })} 640w`}
+                      src={imageUrl(brand.image, { width: 480, height: 360, resize: 'cover' })}
+                      srcSet={`${imageUrl(brand.image, { width: 320, height: 240, resize: 'cover' })} 320w, ${imageUrl(brand.image, { width: 640, height: 480, resize: 'cover' })} 640w`}
                       sizes="(min-width: 1024px) 25vw, 50vw"
                       alt={brand.name}
                       loading="lazy"

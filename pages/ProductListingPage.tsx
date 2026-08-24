@@ -282,8 +282,8 @@ export const ProductListingPage = () => {
         <div className="container mx-auto px-4 py-16 text-center animate-fade-in">
           {isBrandPage && brand?.image && (
             <img
-              src={thumbSrc(brand.image, 80)}
-              srcSet={thumbSrcSet(brand.image, 80)}
+              src={thumbSrc(brand.image, 80, { resize: 'cover' })}
+              srcSet={thumbSrcSet(brand.image, 80, { resize: 'cover' })}
               alt={brand.name}
               width={160}
               height={160}

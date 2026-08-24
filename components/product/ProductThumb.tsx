@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react';
 import { ProductImage } from '../../types';
 import { thumbSrc, thumbSrcSet } from '../../lib/image-url';
-import { fitClass, frameColor, primaryImageOf } from '../../lib/product-image';
+import { fitClass, frameColor, primaryImageOf, resizeOf } from '../../lib/product-image';
 import { useImageFade } from '../../lib/use-image-fade';
 
 /**
@@ -58,8 +58,8 @@ export const ProductThumb: React.FC<ProductThumbProps> = ({
         <img
           ref={fade.ref}
           onLoad={fade.onLoad}
-          src={thumbSrc(url, size)}
-          srcSet={thumbSrcSet(url, size)}
+          src={thumbSrc(url, size, { resize: resizeOf(picked) })}
+          srcSet={thumbSrcSet(url, size, { resize: resizeOf(picked) })}
           alt={alt}
           width={1200}
           height={1200}

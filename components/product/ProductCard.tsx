@@ -10,7 +10,7 @@ import { useUIStore } from '../../store/ui-store';
 import { useWishlistStore } from '../../store/wishlist-store';
 import { imageSrcSet, imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
-import { CARD_SIZES, fitClass, frameColor, primaryImageOf } from '../../lib/product-image';
+import { CARD_SIZES, fitClass, frameColor, primaryImageOf, resizeOf } from '../../lib/product-image';
 import { useImageFade } from '../../lib/use-image-fade';
 
 interface ProductCardProps {
@@ -51,8 +51,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, sizes = CARD_
         <Link to={`/product/${product.slug}`} className="block w-full h-full">
           {primaryImageUrl ? (
             <img
-              src={imageUrl(primaryImageUrl, { width: 600 })}
-              srcSet={imageSrcSet(primaryImageUrl, [300, 450, 600, 900])}
+              src={imageUrl(primaryImageUrl, { width: 600, resize: resizeOf(primaryImage) })}
+              srcSet={imageSrcSet(primaryImageUrl, [300, 450, 600, 900], { resize: resizeOf(primaryImage) })}
               sizes={sizes}
               alt={primaryImage?.altText || product.name}
               width={1200}

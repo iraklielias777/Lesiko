@@ -1,4 +1,5 @@
 import { Product, ProductImage } from '../types';
+import { ImageResize } from './image-url';
 
 /**
  * One place that decides how a product photo is framed.
@@ -30,6 +31,10 @@ export const frameColor = (image?: Pick<ProductImage, 'bgColor'>): string =>
  */
 export const fitClass = (image?: Pick<ProductImage, 'fit'>): string =>
   image?.fit === 'cover' ? 'object-cover' : 'object-contain';
+
+/** Same choice as `fitClass`, for the Supabase render `resize` param. */
+export const resizeOf = (image?: Pick<ProductImage, 'fit'>): ImageResize =>
+  image?.fit === 'cover' ? 'cover' : 'contain';
 
 /** Convenience for the many places that render a thumbnail of a cart line. */
 export const thumbStyle = (image?: Pick<ProductImage, 'bgColor'>) => ({
