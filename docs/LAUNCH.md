@@ -3,15 +3,15 @@
 Everything that has to happen once the production domain exists, in the order
 it has to happen. Each step is a few minutes; the whole list is one sitting.
 
-Placeholders: `DOMAIN` is the bare domain (e.g. `lesiko.ge`), `ORIGIN` is
-`https://DOMAIN`.
+The store's address is `https://www.lesiko.ge` (`ORIGIN` below). The apex
+`lesiko.ge` must also be attached on Vercel so it redirects to `www`.
 
 ## 1. Vercel
 
-1. Settings → Domains: add `DOMAIN` and `www.DOMAIN`, follow the DNS
-   instructions, wait for the certificate.
-2. Make `DOMAIN` the primary domain so `www` redirects to it (or the other way
-   round — pick one and keep it).
+1. Settings → Domains: `www.lesiko.ge` is attached. Add the apex `lesiko.ge`
+   too (an `A` record to `76.76.21.21` at the registrar) and set it to
+   redirect to `www.lesiko.ge`, so a shopper typing the bare name lands on the
+   store and not on the registrar's page.
 3. Settings → General: confirm the project is on a plan that allows commercial
    use. Hobby does not.
 4. Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
@@ -19,17 +19,9 @@ Placeholders: `DOMAIN` is the bare domain (e.g. `lesiko.ge`), `ORIGIN` is
 5. The storefront already sends anyone arriving on `lesiko.vercel.app` to the
    address saved under Admin → SEO, path intact, as soon as that address
    answers — so nothing breaks if you save it a day before DNS resolves. For a
-   true 301 that crawlers honour too, add this to `vercel.json` under a
-   top-level `"redirects"` key and redeploy:
-
-   ```json
-   {
-     "source": "/:path*",
-     "has": [{ "type": "host", "value": "lesiko.vercel.app" }],
-     "destination": "https://DOMAIN/:path*",
-     "permanent": true
-   }
-   ```
+   true 301 that crawlers honour too, `vercel.json` now carries the rule
+   (`lesiko.vercel.app` → `https://www.lesiko.ge/:path*`); it takes effect on
+   the next deploy.
 
 ## 2. Supabase
 
@@ -68,7 +60,25 @@ merchant portal asks for defaults, use those two. Switch the two edge-function
 secrets from the sandbox merchant to the live credentials only after the
 test-mode purchase has been seen end to end on the dashboard.
 
-## 5. One-off scripts (from the repo, with the admin login)
+## 5. Every variable and secret, in one place
+
+| Where | Name | Value | Notes |
+| --- | --- | --- | --- |
+| Vercel → Settings → Environment Variables (Production) | `VITE_SUPABASE_URL` | `https://vhuagxhfmhzyfazbhwpx.supabase.co` | public |
+| Vercel → same | `VITE_SUPABASE_PUBLISHABLE_KEY` | the anon/publishable key from Supabase → Project Settings → API | public; RLS protects the data |
+| Supabase → Edge Functions → Secrets | `FLITT_MERCHANT_ID` | numeric merchant id from the Flitt merchant portal | sandbox `1396424` for the test purchase, then the live id |
+| Supabase → same | `FLITT_SECRET_KEY` | the payment key (secret) from the Flitt portal | sandbox `test`, then the live key; signs every token request and verifies every callback |
+| Supabase → same | `SITE_URL` | `https://www.lesiko.ge` or deleted | optional fallback; Admin → SEO wins |
+| Supabase → Authentication → URL configuration | Site URL | `https://www.lesiko.ge` | where email links land when no redirect is given |
+| Supabase → same | Redirect URLs | `https://www.lesiko.ge/**` | the password-reset link goes to `/reset-password`; the exact-root entry alone does not allow it |
+| Admin → SEO | Site URL | `https://www.lesiko.ge` | drives canonicals, sitemap, the preview-host redirect and Flitt's return URL |
+
+Nothing from Flitt ever goes on Vercel, and nothing else is needed: `SUPABASE_URL`,
+`SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected into the edge
+functions by Supabase itself. Changing a secret takes effect on the next
+function call; no redeploy.
+
+## 6. One-off scripts (from the repo, with the admin login)
 
 ```bash
 node scripts/refresh-cache.mjs <admin-email> <admin-password>   # one-year cache headers on the old uploads
@@ -76,10 +86,10 @@ node scripts/warm-images.mjs                                    # pre-warm the i
 node scripts/smoke.mjs                                          # guest checkout, RPC guards, prerender parity
 ```
 
-## 6. Verify on the real domain
+## 7. Verify on the real domain
 
 ```bash
-node scripts/verify-launch.mjs https://DOMAIN
+node scripts/verify-launch.mjs https://www.lesiko.ge
 ```
 
 It checks the headers (CSP, HSTS, immutable assets), robots and sitemap on the
@@ -99,7 +109,7 @@ Then, by hand:
 - Add a free uptime check (UptimeRobot, Better Stack or similar) on `ORIGIN/`
   and on `https://vhuagxhfmhzyfazbhwpx.supabase.co/functions/v1/seo/robots.txt`.
 
-## 7. What is already watching for you
+## 8. What is already watching for you
 
 - Uncaught storefront errors are reported to the `client-errors` function and
   appear on the admin dashboard as "client error" alerts — one per error per

@@ -41,9 +41,13 @@ const followCanonicalOrigin = (siteUrl?: string) => {
   if (canonical.protocol !== 'https:' || canonical.host === here.host) return;
   if (!here.hostname.endsWith(PREVIEW_HOST_SUFFIX)) return;
 
-  fetch(`${canonical.origin}/boot.js`, { mode: 'no-cors', cache: 'no-store' })
-    .then(() => here.replace(`${canonical.origin}${here.pathname}${here.search}${here.hash}`))
-    .catch(() => undefined);
+  // An image, not a fetch: the CSP allows images from any https origin but
+  // limits fetches to the API hosts, so a fetch probe would be blocked by our
+  // own policy and the redirect would never fire.
+  const probe = new Image();
+  probe.onload = () => here.replace(`${canonical.origin}${here.pathname}${here.search}${here.hash}`);
+  probe.onerror = () => undefined;
+  probe.src = `${canonical.origin}/favicon-32x32.png?probe=${Date.now()}`;
 };
 
 interface SettingsState {
