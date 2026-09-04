@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, Clock, MoveRight, Trash2, ShoppingCart, ArrowRight, Sparkles, Bookmark } from 'lucide-react';
 import { useWishlistStore } from '../store/wishlist-store';
@@ -13,13 +13,23 @@ import { categoryLabel } from '../lib/taxonomy';
 import { useFormatPrice } from '../lib/format';
 import { ProductThumb } from '../components/product/ProductThumb';
 import { usePageSeo } from '../lib/use-seo';
+import { ProductService } from '../services/product-service';
 
 export const WishlistPage = () => {
   const fmt = useFormatPrice();
   const { t, i18n } = useTranslation();
   const categories = useCategories();
   const seo = usePageSeo('wishlist', { title: t('wishlist.title') });
-  const { items, savedItems, removeItem, moveToSaved, moveToWishlist, removeFromSaved } = useWishlistStore();
+  const { items, savedItems, removeItem, moveToSaved, moveToWishlist, removeFromSaved, syncProducts } = useWishlistStore();
+
+  // Prices and stock on the list are whatever they were when the product was
+  // saved; replace them with the live rows on every visit.
+  useEffect(() => {
+    const ids = [...items, ...savedItems].map(p => p.id);
+    if (!ids.length) return;
+    ProductService.getProductsByIds(ids).then(syncProducts).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const addItemToCart = useCartStore(state => state.addItem);
   const [activeTab, setActiveTab] = useState<'wishlist' | 'saved'>('wishlist');
 

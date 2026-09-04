@@ -137,6 +137,44 @@ const warmTransforms = (publicUrl: string, fit: string) => {
   if (runtime?.waitUntil) runtime.waitUntil(Promise.all(jobs));
 };
 
+/**
+ * Everything uploaded before the one-year default still carries `max-age=3600`,
+ * and the render endpoint inherits it, so those objects and every resized
+ * variant of them expire hourly. The header lives on the stored object, not in
+ * the database row, so the only way to change it is to write the same bytes
+ * back to the same path. Same path means the URL in every product row stays
+ * valid; the Smart CDN drops its copy on upsert.
+ */
+async function listAll(prefix: string): Promise<{ name: string; cacheControl: string }[]> {
+  const found: { name: string; cacheControl: string }[] = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await admin.storage.from(BUCKET).list(prefix, { limit: PAGE, offset });
+    if (error || !data?.length) break;
+    for (const entry of data) {
+      // Folders come back with no id; nothing here nests deeper than one level.
+      if (!entry.id) continue;
+      found.push({
+        name: `${prefix}/${entry.name}`,
+        cacheControl: String((entry.metadata as Record<string, unknown> | null)?.cacheControl ?? ''),
+      });
+    }
+    if (data.length < PAGE) break;
+  }
+  return found;
+}
+
+async function refreshCacheHeader(name: string): Promise<string | null> {
+  const { data: blob, error } = await admin.storage.from(BUCKET).download(name);
+  if (error || !blob) return error?.message ?? 'download failed';
+  const { error: upErr } = await admin.storage.from(BUCKET).upload(name, blob, {
+    contentType: blob.type || 'image/webp',
+    cacheControl: `${ONE_YEAR_SECONDS}`,
+    upsert: true,
+  });
+  return upErr?.message ?? null;
+}
+
 async function store(blob: Blob, folder: string, originalName?: string, fit = 'contain') {
   // Remote hosts often return `image/jpeg; charset=binary`.
   const mime = blob.type.split(';')[0].trim().toLowerCase();
@@ -244,6 +282,24 @@ Deno.serve(async (req) => {
       if (!url) return json({ error: 'No url provided' }, 400);
       warmTransforms(url, typeof body.fit === 'string' ? body.fit : 'contain');
       return json({ warming: url });
+    }
+
+    // Rewrite every object still on the hourly header. Used once by
+    // scripts/refresh-cache.mjs; safe to repeat, since a year-cached object is
+    // skipped.
+    if (action === 'refresh-cache') {
+      const stale: string[] = [];
+      for (const folder of ALLOWED_FOLDERS) {
+        for (const entry of await listAll(folder)) {
+          if (!entry.cacheControl.includes(`${ONE_YEAR_SECONDS}`)) stale.push(entry.name);
+        }
+      }
+      const failed: { name: string; error: string }[] = [];
+      for (const name of stale) {
+        const err = await refreshCacheHeader(name);
+        if (err) failed.push({ name, error: err });
+      }
+      return json({ refreshed: stale.length - failed.length, failed });
     }
 
     if (action === 'delete') {

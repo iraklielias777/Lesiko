@@ -1,13 +1,21 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useRecentlyViewedStore } from '../../store/recently-viewed-store';
+import { RECENTLY_VIEWED_REFRESH_MS, useRecentlyViewedStore } from '../../store/recently-viewed-store';
+import { ProductService } from '../../services/product-service';
 import { ProductCard } from './ProductCard';
 import { CARD_SIZES } from '../../lib/product-image';
 
 export const RecentlyViewed = () => {
   const { t } = useTranslation();
-  const { items } = useRecentlyViewedStore();
+  const { items, refreshedAt, syncProducts } = useRecentlyViewedStore();
+
+  useEffect(() => {
+    if (!items.length || Date.now() - refreshedAt < RECENTLY_VIEWED_REFRESH_MS) return;
+    ProductService.getProductsByIds(items.map(p => p.id)).then(syncProducts).catch(() => {});
+    // Once per mount; the store's own stamp throttles repeat visits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (items.length === 0) return null;
 

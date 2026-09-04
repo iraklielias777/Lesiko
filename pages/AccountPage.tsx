@@ -118,10 +118,10 @@ export const AccountPage = () => {
       };
       await AuthService.updateProfile(user.id, patch);
       updateUser(patch);
-      addToast('Profile updated successfully');
+      addToast(t('account.profileUpdated'));
       setIsEditingProfile(false);
     } catch {
-      addToast('Failed to update profile', 'error');
+      addToast(t('account.profileUpdateFailed'), 'error');
     }
   };
 
@@ -177,17 +177,17 @@ export const AccountPage = () => {
       await AddressService.setDefault(user.id, id);
       setAddresses((prev) => prev.map((a) => ({ ...a, isDefault: a.id === id })));
     } catch {
-      addToast('Failed to update default address', 'error');
+      addToast(t('account.addressDefaultFailed'), 'error');
     }
   };
 
   const handleDeleteAddress = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this address?')) return;
+    if (!confirm(t('account.confirmDeleteAddress'))) return;
     try {
       await AddressService.deleteAddress(id);
       setAddresses((prev) => prev.filter((a) => a.id !== id));
     } catch {
-      addToast('Failed to delete address', 'error');
+      addToast(t('account.addressDeleteFailed'), 'error');
     }
   };
 

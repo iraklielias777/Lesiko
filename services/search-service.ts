@@ -6,7 +6,7 @@ import {
   ProductService,
   SortKey,
 } from './product-service';
-import { BrandService } from './brand-service';
+import { BrandService, hasProducts } from './brand-service';
 import { ContentService } from './content-service';
 import { loadCategories } from '../lib/use-categories';
 import { categoryLabel, subLabel } from '../lib/taxonomy';
@@ -198,7 +198,7 @@ export const SearchService = {
       products,
       categories: categoryHits.slice(0, 4),
       brands: brands
-        .filter(brand => matchesTerm(brand.name))
+        .filter(brand => hasProducts(brand) && matchesTerm(brand.name))
         .slice(0, 3)
         .map(brand => ({ name: brand.name, slug: brand.slug })),
     };

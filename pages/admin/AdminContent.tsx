@@ -5,16 +5,17 @@ import { Input } from '../../components/ui/Input';
 import { useToastStore } from '../../store/toast-store';
 import { ContentService } from '../../services/content-service';
 import { StorageService } from '../../services/storage-service';
-import { FaqItem, FooterContent, HelpContent, HeroContent, SocialContent } from '../../types';
+import { FaqItem, FooterContent, HelpContent, HeroContent, LegalContent, LegalPage, SocialContent } from '../../types';
 import type { FooterColumn, FooterLink, FooterSocial, SocialPlatform } from '../../types';
 
-type Tab = 'hero' | 'help' | 'footer' | 'social';
+type Tab = 'hero' | 'help' | 'footer' | 'social' | 'legal';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'hero', label: 'Hero' },
   { id: 'help', label: 'Help & FAQ' },
   { id: 'footer', label: 'Footer' },
-  { id: 'social', label: 'Social grid' }
+  { id: 'social', label: 'Social grid' },
+  { id: 'legal', label: 'Legal pages' }
 ];
 
 const Section = ({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) => (
@@ -65,7 +66,10 @@ export const AdminContent = () => {
   const [help, setHelp] = useState<HelpContent | null>(null);
   const [footer, setFooter] = useState<FooterContent | null>(null);
   const [social, setSocial] = useState<SocialContent | null>(null);
-  const [dirty, setDirty] = useState<Record<Tab, boolean>>({ hero: false, help: false, footer: false, social: false });
+  const [legal, setLegal] = useState<LegalContent | null>(null);
+  // Pages edited since the last save get today's date stamped on them.
+  const [legalTouched, setLegalTouched] = useState<Set<string>>(new Set());
+  const [dirty, setDirty] = useState<Record<Tab, boolean>>({ hero: false, help: false, footer: false, social: false, legal: false });
 
   // Replaced images are only deleted once the block saves, so abandoning an
   // edit cannot remove an image the storefront is still rendering.
@@ -79,13 +83,15 @@ export const AdminContent = () => {
       ContentService.getHeroContent(),
       ContentService.getHelpContent(),
       ContentService.getFooterContent(),
-      ContentService.getSocialContent()
+      ContentService.getSocialContent(),
+      ContentService.getLegalContent()
     ])
-      .then(([h, hp, f, s]) => {
+      .then(([h, hp, f, s, l]) => {
         setHero(h);
         setHelp(hp);
         setFooter(f);
         setSocial(s);
+        setLegal(l);
       })
       .catch(() => addToast('Failed to load site content', 'error'))
       .finally(() => setLoading(false));
@@ -150,6 +156,15 @@ export const AdminContent = () => {
       if (t === 'help' && help) await ContentService.updateHelpContent(help);
       if (t === 'footer' && footer) await ContentService.updateFooterContent(footer);
       if (t === 'social' && social) await ContentService.updateSocialContent(social);
+      if (t === 'legal' && legal) {
+        const today = new Date().toISOString().slice(0, 10);
+        const stamped: LegalContent = {
+          pages: legal.pages.map(page => (legalTouched.has(page.key) ? { ...page, updatedAt: today } : page))
+        };
+        await ContentService.updateLegalContent(stamped);
+        setLegal(stamped);
+        setLegalTouched(new Set());
+      }
       await purgeReplaced();
       setDirty(prev => ({ ...prev, [t]: false }));
       addToast('Content saved');
@@ -168,6 +183,12 @@ export const AdminContent = () => {
   const setHelpField = (field: 'email' | 'phone' | 'hours' | 'hoursKa', value: string) => {
     setHelp(prev => (prev ? { ...prev, [field]: value } : prev));
     markDirty('help');
+  };
+
+  const setLegalField = (key: LegalPage['key'], field: 'title' | 'titleKa' | 'body' | 'bodyKa', value: string) => {
+    setLegal(prev => (prev ? { ...prev, pages: prev.pages.map(p => (p.key === key ? { ...p, [field]: value } : p)) } : prev));
+    setLegalTouched(prev => new Set(prev).add(key));
+    markDirty('legal');
   };
 
   const setFaqField = (id: string, field: keyof FaqItem, value: string) => {
@@ -281,7 +302,7 @@ export const AdminContent = () => {
     markDirty('social');
   };
 
-  if (loading || !hero || !help || !footer || !social) {
+  if (loading || !hero || !help || !footer || !social || !legal) {
     return (
       <div className="flex items-center justify-center py-32">
         <Loader2 className="w-8 h-8 animate-spin text-brand-green" />
@@ -676,6 +697,33 @@ export const AdminContent = () => {
           {saveBar('social', 'Save social grid')}
         </Section>
       )}
+      {tab === 'legal' && (
+        <>
+          {legal.pages.map(page => (
+            <Section
+              key={page.key}
+              title={page.title || page.key}
+              hint={`Shown at /${page.key}. A line starting with "## " is a heading, "- " a bullet, a blank line ends a paragraph. {store} and {email} are filled from Settings.${page.updatedAt ? ` Last saved ${page.updatedAt}.` : ''}`}
+            >
+              <div className="grid md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <Input label="Title (EN)" value={page.title} onChange={e => setLegalField(page.key, 'title', e.target.value)} />
+                  <TextArea label="Body (EN)" rows={18} value={page.body} onChange={v => setLegalField(page.key, 'body', v)} />
+                </div>
+                <div className="space-y-4">
+                  <Input label="Title (KA)" value={page.titleKa || ''} onChange={e => setLegalField(page.key, 'titleKa', e.target.value)} />
+                  <TextArea label="Body (KA)" rows={18} value={page.bodyKa || ''} onChange={v => setLegalField(page.key, 'bodyKa', v)} accent />
+                </div>
+              </div>
+            </Section>
+          ))}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8">
+            <p className="text-xs text-gray-400">Anything in square brackets is a fact only you know — company name, ID number, address, delivery times. Replace them before launch. The pages are linked from the footer, the checkout and the help page, and search engines read them too.</p>
+            {saveBar('legal', 'Save legal pages')}
+          </div>
+        </>
+      )}
+
     </div>
   );
 };

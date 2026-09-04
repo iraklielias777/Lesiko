@@ -95,15 +95,18 @@ const verifySignature = async (
   return expected === provided.toLowerCase();
 };
 
+// Admin → SEO is the single place the store's address lives; the SITE_URL
+// secret is only a fallback for a project whose settings row is empty. Same
+// precedence as the seo function, so the return URL Flitt sends shoppers back
+// to moves with the domain the moment the admin saves it.
 const resolveSiteUrl = async (): Promise<string> => {
-  if (SITE_URL_ENV) return SITE_URL_ENV;
   const { data } = await admin
     .from('site_content')
     .select('content')
     .eq('key', 'store_settings')
     .maybeSingle();
   const fromSettings = String(data?.content?.siteUrl ?? '').replace(/\/+$/, '');
-  return fromSettings;
+  return fromSettings || SITE_URL_ENV;
 };
 
 const loadStoreSettings = async (): Promise<{

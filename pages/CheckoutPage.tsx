@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Lock, CreditCard, Loader2 } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useCartStore } from '../store/cart-store';
 import { useAuthStore } from '../store/auth-store';
 import { useSettingsStore, calculateTotals } from '../store/settings-store';
@@ -14,6 +14,7 @@ import { Order, SavedAddress } from '../types';
 import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
 import { splitWordmark } from '../lib/wordmark';
+import { itemsOfCart, track } from '../lib/analytics';
 
 type CheckoutStep = 'shipping' | 'payment';
 
@@ -38,6 +39,17 @@ export const CheckoutPage = () => {
   const flittRootRef = useRef<HTMLDivElement>(null);
   const mountedTokenRef = useRef<string | null>(null);
   const prefilledRef = useRef(false);
+
+  useEffect(() => {
+    if (step !== 'payment') return;
+    track('begin_checkout', {
+      currency: settings.currency || 'GEL',
+      value: getSubtotal(),
+      items: itemsOfCart(items),
+    });
+    // Reported once per arrival at the payment step, not on every re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
 
   const [address, setAddress] = useState({
     email: '', firstName: '', lastName: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'GE'
@@ -432,8 +444,17 @@ export const CheckoutPage = () => {
                   <CreditCard className="w-5 h-5 text-brand-green" />
                   {t('checkout.paymentMethod')}
                 </h2>
-                <p className="text-sm text-gray-500 mb-6">
+                <p className="text-sm text-gray-500 mb-2">
                   {t('checkout.pay')} {fmt(displayTotal)} · {settings.currency || 'GEL'}
+                </p>
+                <p className="text-xs text-gray-400 mb-6">
+                  <Trans
+                    i18nKey="checkout.agreeTerms"
+                    components={{
+                      terms: <Link to="/terms" className="underline hover:text-gray-700" />,
+                      privacy: <Link to="/privacy" className="underline hover:text-gray-700" />
+                    }}
+                  />
                 </p>
 
                 {isLoading && (

@@ -5,6 +5,7 @@ import {
   SocialPlatform,
   HelpContent,
   HeroContent,
+  LegalContent,
   PromoContent,
   SeoPages,
   SkinTypeContent,
@@ -12,6 +13,7 @@ import {
   StoreSettings
 } from '../types';
 import { supabase } from '../lib/supabase';
+import { DEFAULT_LEGAL } from '../content/legal-defaults';
 
 export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   storeName: 'LesiKo Cosmetics',
@@ -21,7 +23,9 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   freeShippingThreshold: 50,
   shippingRate: 15,
   siteUrl: '',
-  ogImage: ''
+  ogImage: '',
+  defaultLanguage: 'en',
+  gaMeasurementId: ''
 };
 
 // Every route the storefront can land on. The admin editor renders one card per
@@ -35,6 +39,10 @@ export const SEO_PAGE_KEYS = [
   'wishlist',
   'login',
   'register',
+  'terms',
+  'privacy',
+  'delivery',
+  'returns',
   'notFound'
 ] as const;
 
@@ -118,7 +126,8 @@ export const DEFAULT_FOOTER: FooterContent = {
       titleKa: 'დახმარება',
       links: [
         { id: 'faq', label: 'FAQs', labelKa: 'ხშირი კითხვები', href: '/help' },
-        { id: 'delivery', label: 'Delivery', labelKa: 'მიწოდება', href: '/help' },
+        { id: 'delivery', label: 'Delivery', labelKa: 'მიწოდება', href: '/delivery' },
+        { id: 'returns', label: 'Returns', labelKa: 'დაბრუნება', href: '/returns' },
         { id: 'contact', label: 'Contact us', labelKa: 'კონტაქტი', href: '/help' },
         { id: 'track', label: 'Track your order', labelKa: 'შეკვეთის თვალყური', href: '/track-order' },
         { id: 'account', label: 'My account', labelKa: 'ჩემი ანგარიში', href: '/account' }
@@ -138,6 +147,8 @@ export const DEFAULT_FOOTER: FooterContent = {
   legalLine: '© {year} {store}. All rights reserved.',
   legalLineKa: '© {year} {store}. ყველა უფლება დაცულია.',
   bottomLinks: [
+    { id: 'terms', label: 'Terms', labelKa: 'პირობები', href: '/terms' },
+    { id: 'privacy', label: 'Privacy', labelKa: 'კონფიდენციალურობა', href: '/privacy' },
     { id: 'support', label: 'Support', labelKa: 'დახმარება', href: '/help' }
   ]
 };
@@ -256,6 +267,20 @@ export const ContentService = {
   },
   updateFooterContent: (content: FooterContent): Promise<void> =>
     writeBlock('footer_content', normaliseFooter(content)),
+
+  // Merged page by page, so a row saved by an older build that lacks one of
+  // the four pages still shows that page's default rather than a blank route.
+  getLegalContent: async (): Promise<LegalContent> => {
+    const content = await rawBlock('legal_pages') as Partial<LegalContent> | undefined;
+    const saved = Array.isArray(content?.pages) ? content!.pages : [];
+    return {
+      pages: DEFAULT_LEGAL.pages.map(fallback => {
+        const row = saved.find(p => p && p.key === fallback.key);
+        return row ? { ...fallback, ...row } : fallback;
+      })
+    };
+  },
+  updateLegalContent: (content: LegalContent): Promise<void> => writeBlock('legal_pages', content),
 
   getSocialContent: (): Promise<SocialContent> => readBlock('social_content', DEFAULT_SOCIAL),
   updateSocialContent: (content: SocialContent): Promise<void> => writeBlock('social_content', content),

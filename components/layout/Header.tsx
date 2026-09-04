@@ -7,7 +7,7 @@ import { useCartStore } from '../../store/cart-store';
 import { useAuthStore } from '../../store/auth-store';
 import { AuthService } from '../../services/auth-service';
 import { SearchOverlay } from '../search/SearchOverlay';
-import { useSettingsStore } from '../../store/settings-store';
+import { useSettingsStore, LANGUAGE_CHOSEN_KEY } from '../../store/settings-store';
 import { useCategories } from '../../lib/use-categories';
 import { categoryLabel } from '../../lib/taxonomy';
 import { splitWordmark } from '../../lib/wordmark';
@@ -48,6 +48,11 @@ export const Header = () => {
 
   const toggleLanguage = () => {
     const current = i18n.resolvedLanguage || i18n.language;
+    try {
+      localStorage.setItem(LANGUAGE_CHOSEN_KEY, '1');
+    } catch {
+      /* storage unavailable: the admin default simply keeps applying */
+    }
     i18n.changeLanguage(current === 'ka' ? 'en' : 'ka');
   };
 

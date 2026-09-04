@@ -192,7 +192,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
         onClick={e => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-label="Search products"
+        aria-label={t('search.ariaSearch')}
       >
         {/* Search Header */}
         <div className="flex items-center px-4 py-4 sm:p-6 border-b border-gray-100 bg-white z-20 shrink-0">
@@ -214,7 +214,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                 <button 
                     onClick={onClose}
                     className="p-1.5 bg-gray-50 text-gray-500 rounded-md hover:bg-gray-100 transition-colors text-xs font-medium px-2"
-                    aria-label="Close search"
+                    aria-label={t('search.ariaClose')}
                 >
                     ESC
                 </button>

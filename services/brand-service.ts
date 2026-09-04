@@ -15,7 +15,15 @@ const mapBrand = (row: any): Brand => ({
   metaDescription: row.meta_description || undefined,
   metaDescriptionKa: row.meta_description_ka || undefined,
   metaKeywords: row.meta_keywords || undefined,
+  productCount: Array.isArray(row.products) ? row.products[0]?.count ?? 0 : undefined,
 });
+
+/**
+ * A brand with nothing to sell is an admin placeholder, not a destination:
+ * hide it from the storefront lists but keep it in the admin and in slug
+ * lookups, so the page still resolves if someone has the link.
+ */
+export const hasProducts = (brand: Brand): boolean => (brand.productCount ?? 1) > 0;
 
 const nullIfBlank = (value?: string) => (value && value.trim() ? value.trim() : null);
 
@@ -44,9 +52,10 @@ export const invalidateBrands = () => {
 };
 
 const fetchBrands = async (): Promise<Brand[]> => {
+  // The embedded count is what lets the storefront skip empty brands.
   const { data, error } = await supabase
     .from('brands')
-    .select('*')
+    .select('*, products(count)')
     .order('name');
 
   if (error) {

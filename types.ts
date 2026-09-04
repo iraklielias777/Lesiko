@@ -84,6 +84,8 @@ export interface Brand extends EntitySeo {
   slug: string;
   image?: string; // Lifestyle image for the brand
   description?: string; // Short tagline
+  /** Live product count; undefined when the list was loaded without it. */
+  productCount?: number;
 }
 
 export interface Category {
@@ -190,6 +192,27 @@ export interface StoreSettings {
   // from the browser because previews and staging serve the same bundle.
   siteUrl: string;
   ogImage: string; // fallback social share image
+  /** Language a first-time visitor sees; a visitor's own toggle wins after that. */
+  defaultLanguage?: 'en' | 'ka';
+  /** Google Analytics 4 measurement ID (G-…); analytics stay off while empty. */
+  gaMeasurementId?: string;
+}
+
+export type LegalPageKey = 'terms' | 'privacy' | 'delivery' | 'returns';
+
+export interface LegalPage {
+  key: LegalPageKey;
+  title: string;
+  titleKa?: string;
+  /** See lib/rich-text.tsx for the three-rule format. */
+  body: string;
+  bodyKa?: string;
+  /** ISO date, stamped by the admin editor when the page is saved. */
+  updatedAt?: string;
+}
+
+export interface LegalContent {
+  pages: LegalPage[];
 }
 
 // Copy for a route that has no database row behind it.

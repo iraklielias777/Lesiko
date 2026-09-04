@@ -19,6 +19,7 @@ import { useEntitySeo, useSiteUrl } from '../lib/use-seo';
 import { useSettingsStore } from '../store/settings-store';
 import { CARD_SIZES } from '../lib/product-image';
 import { NotFoundPage } from './NotFoundPage';
+import { itemOf, track } from '../lib/analytics';
 
 export const ProductDetailPage = () => {
   const fmt = useFormatPrice();
@@ -48,6 +49,7 @@ export const ProductDetailPage = () => {
         setProduct(data || null);
         if (data) {
           addRecentlyViewed(data); // Add to history
+          track('view_item', { currency: currency || 'GEL', value: data.price, items: [itemOf(data)] });
           const related = await ProductService.getRelatedProducts(data.id, data.category.slug);
           setRelatedProducts(related);
         }

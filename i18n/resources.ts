@@ -65,6 +65,7 @@ export const resources = {
         Cancelled: "Cancelled"
       },
       home: {
+        limitedEdition: "Limited Edition",
         heroTitle: "Redefine Beauty",
         heroSubtitle: "Discover science-backed skincare and premium cosmetics designed to enhance your natural radiance.",
         shopCollection: "Shop Collection",
@@ -151,6 +152,7 @@ export const resources = {
         allBrands: "All Brands"
       },
       checkout: {
+        agreeTerms: "By paying you agree to our <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>.",
         order: "Order",
         noOrder: "No order to show",
         noOrderHint: "Open this page from checkout after paying, or from your account orders.",
@@ -228,6 +230,11 @@ export const resources = {
         checkEmailBody: "We sent a confirmation link to {{email}}. Open it to activate your account, then sign in."
       },
       account: {
+        profileUpdated: "Profile updated",
+        profileUpdateFailed: "Could not update your profile",
+        addressDefaultFailed: "Could not change the default address",
+        addressDeleteFailed: "Could not delete the address",
+        confirmDeleteAddress: "Delete this address?",
         hello: "Hello",
         memberSince: "Member since",
         overview: "Overview",
@@ -268,6 +275,11 @@ export const resources = {
         helpFaqs: "Help & FAQs"
       },
       wishlist: {
+        added: "Added to wishlist",
+        removed: "Removed from wishlist",
+        savedToast: "Saved for later",
+        movedBack: "Moved back to wishlist",
+        removedSaved: "Removed from saved items",
         title: "My Wishlist",
         curate: "Curate your collection",
         emptyTitle: "Your Beauty Wishlist is Empty",
@@ -281,6 +293,9 @@ export const resources = {
         popular: "Popular Categories:"
       },
       cart: {
+        outOfStockToast: "This item is out of stock",
+        onlyInStock: "Only {{count}} in stock for {{name}}",
+        addedToCart: "Added {{name}} to bag",
         awayFromFree: "{{amount}} away from free shipping",
         freeUnlocked: "Free shipping unlocked",
         taxesAtCheckout: "Shipping and taxes are calculated at checkout.",
@@ -330,6 +345,8 @@ export const resources = {
         a6: "You can track your order from the 'My Account' section under 'Order History'."
       },
       search: {
+        ariaSearch: "Search products",
+        ariaClose: "Close search",
         popularTags: "Popular tags",
         noMatches: "No matches found",
         tryHint: "Try a product name, a category or a brand.",
@@ -342,6 +359,13 @@ export const resources = {
         recent: "Recent searches",
         clear: "Clear",
         viewAll: "View all results for \"{{query}}\"",
+      },
+      legal: {
+        eyebrow: "Legal",
+        lastUpdated: "Last updated {{date}}",
+        alsoSee: "Also see",
+        questions: "Questions about this page? Email us.",
+        missing: "This page has no content yet."
       },
       admin: {
         dashboard: "Dashboard",
@@ -516,6 +540,7 @@ export const resources = {
         Cancelled: "გაუქმებულია"
       },
       home: {
+        limitedEdition: "ლიმიტირებული გამოშვება",
         heroTitle: "სილამაზის ახალი სტანდარტი",
         heroSubtitle: "აღმოაჩინეთ მეცნიერულად შემუშავებული თავის მოვლის საშუალებები და პრემიუმ კოსმეტიკა.",
         shopCollection: "კოლექციის ნახვა",
@@ -602,6 +627,7 @@ export const resources = {
         allBrands: "ყველა ბრენდი"
       },
       checkout: {
+        agreeTerms: "გადახდით თქვენ ეთანხმებით ჩვენს <terms>მომსახურების პირობებს</terms> და <privacy>კონფიდენციალურობის პოლიტიკას</privacy>.",
         order: "შეკვეთა",
         noOrder: "შეკვეთა ვერ მოიძებნა",
         noOrderHint: "ეს გვერდი იხსნება გადახდის შემდეგ ან თქვენი ანგარიშის შეკვეთებიდან.",
@@ -679,6 +705,11 @@ export const resources = {
         checkEmailBody: "დადასტურების ბმული გაგზავნილია მისამართზე {{email}}. გახსენით ის და შემდეგ შეხვიდეთ.",
       },
       account: {
+        profileUpdated: "პროფილი განახლდა",
+        profileUpdateFailed: "პროფილის განახლება ვერ მოხერხდა",
+        addressDefaultFailed: "ნაგულისხმევი მისამართის შეცვლა ვერ მოხერხდა",
+        addressDeleteFailed: "მისამართის წაშლა ვერ მოხერხდა",
+        confirmDeleteAddress: "წავშალოთ ეს მისამართი?",
         hello: "გამარჯობა",
         memberSince: "რეგისტრაციის თარიღი",
         overview: "მიმოხილვა",
@@ -719,6 +750,11 @@ export const resources = {
         helpFaqs: "დახმარება",
       },
       wishlist: {
+        added: "დაემატა სურვილებს",
+        removed: "წაიშალა სურვილებიდან",
+        savedToast: "შენახულია მოგვიანებისთვის",
+        movedBack: "დაბრუნდა სურვილებში",
+        removedSaved: "წაიშალა შენახულებიდან",
         title: "სურვილების სია",
         curate: "შეაგროვე შენი კოლექცია",
         emptyTitle: "სია ცარიელია",
@@ -732,6 +768,9 @@ export const resources = {
         popular: "პოპულარული კატეგორიები:"
       },
       cart: {
+        outOfStockToast: "ეს პროდუქტი მარაგში არ არის",
+        onlyInStock: "{{name}} — მარაგშია მხოლოდ {{count}}",
+        addedToCart: "{{name}} დაემატა კალათას",
         awayFromFree: "უფასო მიწოდებამდე დარჩა {{amount}}",
         freeUnlocked: "უფასო მიწოდება ჩართულია",
         taxesAtCheckout: "მიწოდება და გადასახადები ითვლება გადახდისას.",
@@ -781,6 +820,8 @@ export const resources = {
         a6: "შეკვეთის სტატუსის ნახვა შეგიძლიათ პირად კაბინეტში, 'შეკვეთების ისტორიის' განყოფილებაში."
       },
       search: {
+        ariaSearch: "პროდუქტების ძიება",
+        ariaClose: "ძიების დახურვა",
         popularTags: "პოპულარული",
         noMatches: "ვერაფერი მოიძებნა",
         tryHint: "სცადეთ პროდუქტის სახელი, კატეგორია ან ბრენდი.",
@@ -793,6 +834,13 @@ export const resources = {
         recent: "ბოლო ძიებები",
         clear: "გასუფთავება",
         viewAll: "ყველა შედეგი: „{{query}}“",
+      },
+      legal: {
+        eyebrow: "სამართლებრივი",
+        lastUpdated: "ბოლო განახლება: {{date}}",
+        alsoSee: "იხილეთ ასევე",
+        questions: "კითხვები ამ გვერდზე? მოგვწერეთ.",
+        missing: "ამ გვერდს ჯერ არ აქვს შინაარსი."
       },
       admin: {
         dashboard: "დაფა",

@@ -143,3 +143,73 @@ export const resolveEntitySeo = (
     noindex: false
   };
 };
+
+// ---------------------------------------------------------------------------
+// Rich text — the legal pages' three-rule format. Mirrors lib/rich-text.tsx:
+// `## ` heading, `- ` bullet, blank line ends a paragraph. Keep the two in step.
+// ---------------------------------------------------------------------------
+
+type RichBlock =
+  | { type: 'h2'; text: string }
+  | { type: 'p'; text: string }
+  | { type: 'ul'; items: string[] };
+
+export const parseRichText = (text: string): RichBlock[] => {
+  const blocks: RichBlock[] = [];
+  let paragraph: string[] = [];
+  let list: string[] = [];
+
+  const flush = () => {
+    if (paragraph.length) {
+      blocks.push({ type: 'p', text: paragraph.join(' ') });
+      paragraph = [];
+    }
+    if (list.length) {
+      blocks.push({ type: 'ul', items: list });
+      list = [];
+    }
+  };
+
+  for (const raw of (text || '').replace(/\r\n?/g, '\n').split('\n')) {
+    const line = raw.trim();
+    if (!line) {
+      flush();
+    } else if (line.startsWith('## ')) {
+      flush();
+      blocks.push({ type: 'h2', text: line.slice(3).trim() });
+    } else if (line.startsWith('- ')) {
+      if (paragraph.length) {
+        blocks.push({ type: 'p', text: paragraph.join(' ') });
+        paragraph = [];
+      }
+      list.push(line.slice(2).trim());
+    } else {
+      if (list.length) {
+        blocks.push({ type: 'ul', items: list });
+        list = [];
+      }
+      paragraph.push(line);
+    }
+  }
+  flush();
+  return blocks;
+};
+
+const escapeText = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+export const richTextToHtml = (text: string): string =>
+  parseRichText(text)
+    .map(block => {
+      if (block.type === 'h2') return `<h2>${escapeText(block.text)}</h2>`;
+      if (block.type === 'ul') return `<ul>${block.items.map(item => `<li>${escapeText(item)}</li>`).join('')}</ul>`;
+      return `<p>${escapeText(block.text)}</p>`;
+    })
+    .join('\n');
+
+/** The plain first paragraph, for meta descriptions. */
+export const richTextExcerpt = (text: string, max = 160): string => {
+  const first = parseRichText(text).find(block => block.type === 'p');
+  const value = first && first.type === 'p' ? first.text : '';
+  return value.length <= max ? value : `${value.slice(0, max - 1).trimEnd()}…`;
+};

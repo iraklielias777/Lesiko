@@ -216,6 +216,28 @@ export const AdminSettings = () => {
             </div>
             <p className="text-xs text-gray-400">These drive the cart drawer progress bar and the totals on the checkout page. Currency accepts an ISO code such as USD, EUR or GEL.</p>
 
+            <h3 className="font-heading font-bold text-lg border-b border-gray-100 pb-2 pt-4">Storefront</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+                <div className="w-full">
+                    <label className="block text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">Default language</label>
+                    <select
+                        className="w-full bg-white border border-gray-200 py-3 px-4 text-sm text-gray-900 outline-none transition-all duration-200 focus:border-brand-dark focus:ring-1 focus:ring-brand-dark"
+                        value={formData.defaultLanguage || 'en'}
+                        onChange={e => handleChange('defaultLanguage', e.target.value)}
+                    >
+                        <option value="en">English</option>
+                        <option value="ka">ქართული (Georgian)</option>
+                    </select>
+                </div>
+                <Input
+                    label="Google Analytics measurement ID"
+                    placeholder="G-XXXXXXXXXX"
+                    value={formData.gaMeasurementId || ''}
+                    onChange={e => handleChange('gaMeasurementId', e.target.value.trim())}
+                />
+            </div>
+            <p className="text-xs text-gray-400">A first-time visitor sees the default language; anyone who uses the language toggle keeps their own choice. Analytics stay off while the measurement ID is blank. With one set, page views and the checkout funnel (view item, add to bag, begin checkout, purchase) are reported and nothing personal is sent.</p>
+
             <div className="pt-6 border-t border-gray-100 flex justify-end">
                 <Button type="submit" disabled={!isDirty} leftIcon={<Save className="w-4 h-4"/>}>{t('admin.saveChanges')}</Button>
             </div>

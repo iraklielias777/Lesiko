@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { ChevronDown, Mail, Phone, Clock, Send, Package, RefreshCw, User } from 'lucide-react';
 import { SEO } from '../components/seo/SEO';
 import { ContentService } from '../services/content-service';
@@ -183,7 +184,7 @@ export const HelpPage = () => {
         
         {/* Quick Links Footer */}
         <div className="mt-24 grid grid-cols-1 md:grid-cols-3 gap-6 pt-12 border-t border-gray-100">
-            <div className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-shadow">
+            <Link to="/delivery" className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-shadow">
                 <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center">
                     <Package className="w-6 h-6" />
                 </div>
@@ -191,8 +192,8 @@ export const HelpPage = () => {
                     <h4 className="font-bold text-gray-900">{t('help.shipping')}</h4>
                     <p className="text-sm text-gray-500 mt-1">{t('help.trackInfo')}</p>
                 </div>
-            </div>
-            <div className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-shadow">
+            </Link>
+            <Link to="/returns" className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-shadow">
                 <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center">
                     <RefreshCw className="w-6 h-6" />
                 </div>
@@ -200,7 +201,7 @@ export const HelpPage = () => {
                     <h4 className="font-bold text-gray-900">{t('help.returns')}</h4>
                     <p className="text-sm text-gray-500 mt-1">{t('help.policyRequest')}</p>
                 </div>
-            </div>
+            </Link>
             <div className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-shadow">
                 <div className="w-12 h-12 bg-green-50 text-green-600 rounded-full flex items-center justify-center">
                     <User className="w-6 h-6" />

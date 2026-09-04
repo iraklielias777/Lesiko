@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Tag } from 'lucide-react';
 import { SEO } from '../components/seo/SEO';
-import { BrandService } from '../services/brand-service';
+import { BrandService, hasProducts } from '../services/brand-service';
 import { Brand } from '../types';
 import { imageUrl } from '../lib/image-url';
 import { usePageSeo, useSiteUrl } from '../lib/use-seo';
@@ -22,7 +22,7 @@ export const BrandIndexPage = () => {
 
   useEffect(() => {
     BrandService.getBrands()
-      .then(setBrands)
+      .then(fetched => setBrands(fetched.filter(hasProducts)))
       .finally(() => setLoading(false));
   }, []);
 

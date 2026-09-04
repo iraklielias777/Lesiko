@@ -20,7 +20,9 @@ import {
   pickLang,
   plainText,
   resolveEntitySeo,
-  resolvePageSeo
+  resolvePageSeo,
+  richTextExcerpt,
+  richTextToHtml
 } from './seo-core.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -52,6 +54,8 @@ interface SiteConfig {
   ogImage: string;
   currency: string;
   supportEmail: string;
+  /** Language bots see when the request carries no ?lang — Admin → Settings. */
+  defaultLanguage: 'en' | 'ka';
 }
 
 // Paths that exist but are not worth a crawl budget, and paths that would leak
@@ -63,8 +67,21 @@ const STATIC_ROUTES: { path: string; key: string; priority: string; changefreq: 
   { path: '/products', key: 'products', priority: '0.9', changefreq: 'daily' },
   { path: '/sale', key: 'sale', priority: '0.8', changefreq: 'daily' },
   { path: '/brands', key: 'brands', priority: '0.6', changefreq: 'weekly' },
-  { path: '/help', key: 'help', priority: '0.4', changefreq: 'monthly' }
+  { path: '/help', key: 'help', priority: '0.4', changefreq: 'monthly' },
+  { path: '/terms', key: 'terms', priority: '0.3', changefreq: 'monthly' },
+  { path: '/privacy', key: 'privacy', priority: '0.3', changefreq: 'monthly' },
+  { path: '/delivery', key: 'delivery', priority: '0.4', changefreq: 'monthly' },
+  { path: '/returns', key: 'returns', priority: '0.4', changefreq: 'monthly' }
 ];
+
+// Editable long-form pages served from the `legal_pages` content block.
+const LEGAL_KEYS = ['terms', 'privacy', 'delivery', 'returns'];
+const LEGAL_TITLES: Record<string, { en: string; ka: string }> = {
+  terms: { en: 'Terms of Service', ka: 'მომსახურების პირობები' },
+  privacy: { en: 'Privacy Policy', ka: 'კონფიდენციალურობის პოლიტიკა' },
+  delivery: { en: 'Delivery', ka: 'მიწოდება' },
+  returns: { en: 'Returns & Refunds', ka: 'დაბრუნება და თანხის უკან დაბრუნება' }
+};
 
 const escapeHtml = (value: string) =>
   value
@@ -143,7 +160,8 @@ const loadConfig = async (req: Request): Promise<SiteConfig> => {
     siteUrl: resolveSiteUrl(settings.siteUrl || '', req),
     ogImage: settings.ogImage || '',
     currency: settings.currency || 'USD',
-    supportEmail: settings.supportEmail || ''
+    supportEmail: settings.supportEmail || '',
+    defaultLanguage: settings.defaultLanguage === 'ka' ? 'ka' : 'en'
   };
 };
 
@@ -199,7 +217,7 @@ const sitemap = async (config: SiteConfig): Promise<Response> => {
   const [products, categories, brands] = await Promise.all([
     db.from('products').select('slug, updated_at').order('updated_at', { ascending: false }),
     db.from('categories').select('slug, updated_at').order('position'),
-    db.from('brands').select('slug, updated_at').order('name')
+    db.from('brands').select('slug, updated_at, products(count)').order('name')
   ]);
 
   const entries: string[] = [];
@@ -230,6 +248,8 @@ const sitemap = async (config: SiteConfig): Promise<Response> => {
   }
 
   for (const brand of brands.data || []) {
+    // An empty brand is an admin placeholder; the storefront hides it too.
+    if ((brand.products?.[0]?.count ?? 1) === 0) continue;
     add(`/brand/${brand.slug}`, brand.updated_at, 'weekly', '0.6');
   }
 
@@ -613,6 +633,33 @@ const renderStatic = async (
     return { seo, canonicalPath, heading: seo.title, body, schema };
   }
 
+  if (LEGAL_KEYS.includes(pageKey)) {
+    const { data } = await db
+      .from('site_content')
+      .select('content')
+      .eq('key', 'legal_pages')
+      .maybeSingle();
+
+    const pages: any[] = Array.isArray(data?.content?.pages) ? data.content.pages : [];
+    const page = pages.find(p => p?.key === pageKey);
+    const fill = (value: string) =>
+      value.replace(/\{store\}/g, config.storeName).replace(/\{email\}/g, config.supportEmail);
+    const title = page
+      ? fill(pickLang(page.title, page.titleKa, isKa))
+      : (isKa ? LEGAL_TITLES[pageKey].ka : LEGAL_TITLES[pageKey].en);
+    const text = page ? fill(pickLang(page.body, page.bodyKa, isKa)) : '';
+
+    const legalSeo = resolvePageSeo(config.seo, pageKey, {
+      isKa,
+      storeName: config.storeName,
+      ogImage: config.ogImage,
+      fallbackTitle: title,
+      fallbackDescription: richTextExcerpt(text)
+    });
+
+    return { seo: legalSeo, canonicalPath, heading: title, body: richTextToHtml(text) };
+  }
+
   if (pageKey === 'brands') {
     const { data: brands } = await db.from('brands').select('slug, name, description').order('name');
     const body = [
@@ -734,6 +781,8 @@ const render = async (config: SiteConfig, rawPath: string, isKa: boolean): Promi
     rendered = await renderStatic(config, 'brands', '/brands', isKa);
   } else if (segments[0] === 'help') {
     rendered = await renderStatic(config, 'help', '/help', isKa);
+  } else if (segments.length === 1 && LEGAL_KEYS.includes(segments[0])) {
+    rendered = await renderStatic(config, segments[0], `/${segments[0]}`, isKa);
   } else if (['login', 'register', 'wishlist'].includes(segments[0])) {
     rendered = await renderStatic(config, segments[0], `/${segments[0]}`, isKa);
   }
@@ -764,7 +813,8 @@ Deno.serve(async req => {
 
   try {
     const config = await loadConfig(req);
-    const isKa = (url.searchParams.get('lang') || '').toLowerCase() === 'ka';
+    const langParam = (url.searchParams.get('lang') || '').toLowerCase();
+    const isKa = langParam ? langParam === 'ka' : config.defaultLanguage === 'ka';
 
     if (route.startsWith('/robots')) return robots(config);
     if (route.startsWith('/sitemap')) return await sitemap(config);

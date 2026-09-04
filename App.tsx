@@ -1,5 +1,5 @@
 
-import React, { useEffect, Suspense, ReactNode, Component, lazy } from 'react';
+import React, { useEffect, Suspense, ReactNode, Component, lazy, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 
 // Layout & Components. These render on every storefront route, so they belong
@@ -17,6 +17,8 @@ import { AuthBootstrap } from './components/auth/AuthBootstrap';
 import { HomePage } from './pages/HomePage';
 import { ProductListingPage } from './pages/ProductListingPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
+import { trackPageView } from './lib/analytics';
+import { reportError } from './lib/error-reporting';
 
 /**
  * Everything below is loaded on demand.
@@ -52,6 +54,7 @@ const AccountOrderDetailPage = lazy(() => import('./pages/AccountOrderDetailPage
 const TrackOrderPage = lazy(() => import('./pages/TrackOrderPage').then(m => ({ default: m.TrackOrderPage })));
 const HelpPage = lazy(() => import('./pages/HelpPage').then(m => ({ default: m.HelpPage })));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
+const LegalPage = lazy(() => import('./pages/LegalPage').then(m => ({ default: m.LegalPage })));
 
 /** Shown while a route chunk arrives. Matches the spinner the app already uses. */
 const RouteFallback = () => (
@@ -62,10 +65,18 @@ const RouteFallback = () => (
 
 // Scroll to top on route change
 const ScrollToTop = () => {
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const firstView = useRef(true);
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [pathname]);
+    // The first view is reported by initAnalytics once the measurement ID is
+    // known; this covers every navigation after it.
+    if (firstView.current) {
+      firstView.current = false;
+      return;
+    }
+    trackPageView(pathname + search);
+  }, [pathname, search]);
   return null;
 };
 
@@ -86,6 +97,10 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   static getDerivedStateFromError(_: Error): ErrorBoundaryState {
     return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: { componentStack?: string }) {
+    reportError(error, info.componentStack || '');
   }
 
   render() {
@@ -163,6 +178,10 @@ const App = () => {
                                 <Route path="/account/orders/:orderId" element={<AccountOrderDetailPage />} />
                                 <Route path="/track-order" element={<TrackOrderPage />} />
                                 <Route path="/help" element={<HelpPage />} />
+                                <Route path="/terms" element={<LegalPage pageKey="terms" />} />
+                                <Route path="/privacy" element={<LegalPage pageKey="privacy" />} />
+                                <Route path="/delivery" element={<LegalPage pageKey="delivery" />} />
+                                <Route path="/returns" element={<LegalPage pageKey="returns" />} />
                                 <Route path="/cart" element={<CartPage />} />
                                 <Route path="/checkout" element={<CheckoutPage />} />
                                 <Route path="/order-confirmation" element={<OrderConfirmationPage />} />

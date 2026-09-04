@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '../components/ui/Button';
 import { ProductCard } from '../components/product/ProductCard';
 import { ProductService } from '../services/product-service';
-import { BrandService } from '../services/brand-service';
+import { BrandService, hasProducts } from '../services/brand-service';
 import { ContentService } from '../services/content-service';
 import { FooterContent, Product, Brand, CategoryHierarchyItem, HeroContent, PromoContent, SkinTypeContent, SocialContent } from '../types';
 import { RecentlyViewed } from '../components/product/RecentlyViewed';
@@ -65,7 +65,7 @@ export const HomePage = () => {
     ProductService.getTrending(8).then(setTrendingProducts);
 
     BrandService.getBrands().then(fetchedBrands => {
-        setBrands(fetchedBrands.slice(0, 8));
+        setBrands(fetchedBrands.filter(hasProducts).slice(0, 8));
     });
 
     // Via the shared cache, not CategoryService directly: the header, the
@@ -424,7 +424,7 @@ export const HomePage = () => {
                 />
             </div>
             <div className="flex-1 text-center md:text-left md:order-1">
-                <span className="inline-block py-1.5 px-4 border border-white/20 text-brand-green text-xs font-bold uppercase tracking-widest rounded-full mb-6 md:mb-8 backdrop-blur-sm">Limited Edition</span>
+                <span className="inline-block py-1.5 px-4 border border-white/20 text-brand-green text-xs font-bold uppercase tracking-widest rounded-full mb-6 md:mb-8 backdrop-blur-sm">{t('home.limitedEdition')}</span>
                 <h2 className="font-heading text-4xl md:text-6xl font-bold mb-6 md:mb-8 leading-[1.1]">{promoText.title}</h2>
                 <p className="text-gray-400 text-base md:text-lg mb-8 md:mb-10 max-w-lg mx-auto md:mx-0 leading-relaxed font-light">{promoText.desc}</p>
                 <Link to={promoContent.link || '/products'}><Button variant="primary" size="lg" className="w-full md:w-auto min-w-[200px] h-14 text-base shadow-xl shadow-brand-green/20">{promoText.btn}</Button></Link>

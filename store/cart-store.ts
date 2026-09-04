@@ -4,6 +4,9 @@ import { persist } from 'zustand/middleware';
 import { Product, CartItem, ProductVariant } from '../types';
 import { useToastStore } from './toast-store';
 import { ProductService } from '../services/product-service';
+import { useSettingsStore } from './settings-store';
+import i18n from '../i18n';
+import { itemOf, track } from '../lib/analytics';
 
 interface CartState {
   items: CartItem[];
@@ -46,7 +49,7 @@ export const useCartStore = create<CartState>()(
           const max = availableStock(product, variant);
 
           if (max <= 0) {
-            addToast('This item is out of stock');
+            addToast(i18n.t('cart.outOfStockToast'));
             return state;
           }
 
@@ -55,9 +58,14 @@ export const useCartStore = create<CartState>()(
           const nextQty = Math.min(desired, max);
 
           if (nextQty < desired) {
-            addToast(`Only ${max} in stock for ${product.name}${variantName}`);
+            addToast(i18n.t('cart.onlyInStock', { count: max, name: `${product.name}${variantName}` }));
           } else {
-            addToast(`Added ${product.name}${variantName} to cart`);
+            addToast(i18n.t('cart.addedToCart', { name: `${product.name}${variantName}` }));
+            track('add_to_cart', {
+              currency: useSettingsStore.getState().settings.currency || 'GEL',
+              value: (variant?.price ?? product.price) * (nextQty - (existingItem?.quantity || 0)),
+              items: [itemOf(product, variant, nextQty - (existingItem?.quantity || 0))],
+            });
           }
 
           if (existingItem) {
@@ -165,6 +173,9 @@ export const useCartStore = create<CartState>()(
     }),
     {
       name: 'lesiko-cart-storage',
+      // Only the lines. `isOpen` used to persist too, so a drawer left open
+      // reopened itself on the next visit before anything was clicked.
+      partialize: (state) => ({ items: state.items }),
     }
   )
 );

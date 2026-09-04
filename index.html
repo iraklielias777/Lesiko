@@ -25,34 +25,9 @@
     <meta name="twitter:description" content="LesiKo - Your destination for premium cosmetics and personalized skincare routines in Georgia." />
     <meta name="twitter:image" content="/og-default.png" />
     
-    <!-- Process Shim: Prevents crashes in libraries expecting Node-like environment -->
-    <script>
-      window.process = { env: { NODE_ENV: 'production' } };
-    </script>
-
-    <!-- The app moved off HashRouter. Links shared while it was live still carry
-         the fragment, so rewrite them to the real path before React boots. -->
-    <script>
-      if (location.hash.indexOf('#/') === 0) {
-        var target = location.hash.slice(1);
-        history.replaceState(null, '', target.indexOf('?') === -1 ? target + location.search : target);
-      }
-    </script>
-
-    <!-- Global Error Catcher: Shows errors on screen if the app fails to mount -->
-    <script>
-      window.onerror = function(msg, url, lineNo, columnNo, error) {
-        const root = document.getElementById('root');
-        if (root && !root.innerHTML.trim()) {
-          root.innerHTML = '<div style="padding: 20px; font-family: sans-serif; text-align: center;">' +
-            '<h2>Application Error</h2>' +
-            '<p style="color: #666;">' + msg + '</p>' +
-            '<button onclick="location.reload()" style="padding: 10px 20px; background: #AED136; border: none; border-radius: 5px; color: white; cursor: pointer;">Retry</button>' +
-            '</div>';
-        }
-        return false;
-      };
-    </script>
+    <!-- Boot script: process shim, legacy hash-URL rewrite and the mount-failure
+         message. External rather than inline so the CSP can forbid inline scripts. -->
+    <script src="/boot.js"></script>
 
     <!-- Every image, catalogue read and auth call goes to the Supabase origin,
          so the handshake is worth starting before React has parsed. -->

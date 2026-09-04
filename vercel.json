@@ -12,12 +12,25 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
         {
           "key": "Permissions-Policy",
           "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self' https:; upgrade-insecure-requests; script-src 'self' https://pay.flitt.com https://pay.google.com https://applepay.cdn-apple.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://pay.flitt.com; font-src 'self' data: https://fonts.gstatic.com https://pay.flitt.com https://applepay.cdn-apple.com; img-src 'self' data: blob: https:; media-src 'self' blob: https://*.mux.com; connect-src 'self' https://vhuagxhfmhzyfazbhwpx.supabase.co wss://vhuagxhfmhzyfazbhwpx.supabase.co https://*.flitt.com https://pay.google.com https://google.com https://*.google.com https://*.apple.com https://*.mux.com https://*.litix.io https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com; frame-src https:; worker-src 'self' blob:; manifest-src 'self'"
         }
       ]
     }

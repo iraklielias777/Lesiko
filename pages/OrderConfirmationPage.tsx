@@ -10,6 +10,27 @@ import { useFormatPrice } from '../lib/format';
 import { PaymentService } from '../services/payment-service';
 import { useCartStore } from '../store/cart-store';
 import { useAuthStore } from '../store/auth-store';
+import { useSettingsStore } from '../store/settings-store';
+import { itemsOfOrder, track } from '../lib/analytics';
+
+// Once per order, even if the page is reloaded while it is still polling.
+const reportPurchase = (order: Order) => {
+  const key = `lesiko-purchase-${order.id}`;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, '1');
+  } catch {
+    /* storage unavailable: report anyway */
+  }
+  track('purchase', {
+    transaction_id: order.orderNumber,
+    value: order.total,
+    currency: useSettingsStore.getState().settings.currency || 'GEL',
+    shipping: order.shipping,
+    tax: order.tax,
+    items: itemsOfOrder(order),
+  });
+};
 
 export const OrderConfirmationPage = () => {
   const fmt = useFormatPrice();
@@ -47,6 +68,7 @@ export const OrderConfirmationPage = () => {
         if (next.paymentStatus === 'paid') {
           clearCart();
           PaymentService.clearPendingCheckout();
+          reportPurchase(next);
           setPolling(false);
           return;
         }
