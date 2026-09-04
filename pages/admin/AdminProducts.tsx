@@ -88,6 +88,14 @@ const ImageQualityNote: React.FC<{ report?: UploadedImage; bgColor?: string }> =
   );
 };
 
+/** Why a row needs a human before a shopper sees it, or null. */
+const attentionReason = (p: Product): string | null => {
+  if (!(p.price > 0)) return 'Price is zero';
+  if (p.compareAtPrice !== undefined && p.compareAtPrice <= p.price) return 'Sale fields reversed';
+  if (!p.images?.length) return 'No image';
+  return null;
+};
+
 export const AdminProducts = () => {
   const fmt = useFormatPrice();
   const { t } = useTranslation();
@@ -97,6 +105,7 @@ export const AdminProducts = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -149,9 +158,10 @@ export const AdminProducts = () => {
         || p.brand.name.toLowerCase().includes(term);
       const matchesBrand = selectedBrand ? p.brand.id === selectedBrand : true;
       const matchesCategory = selectedCategory ? p.category.slug === selectedCategory : true;
-      return matchesSearch && matchesBrand && matchesCategory;
+      const matchesAttention = !attentionOnly || !!attentionReason(p);
+      return matchesSearch && matchesBrand && matchesCategory && matchesAttention;
     });
-  }, [products, searchTerm, selectedBrand, selectedCategory]);
+  }, [products, searchTerm, selectedBrand, selectedCategory, attentionOnly]);
 
   const pager = usePagination(filteredProducts, 25, [searchTerm, selectedBrand, selectedCategory]);
 
@@ -349,6 +359,24 @@ export const AdminProducts = () => {
     }));
   };
 
+  /**
+   * Which option a gallery photo belongs to. A photo assigned to an option is
+   * shown for that option only; an unassigned photo is shared by every option
+   * that has no photos of its own. This is the same choice the per-variant
+   * pickers make, surfaced where the photos are.
+   */
+  const assignImageOwner = (imageId: string, variantId: string) => {
+    setFormData(prev => {
+      const images = (prev.images || []).map(img => {
+        if (img.id !== imageId) return img;
+        return variantId ? { ...img, variantId } : stripVariantId(img);
+      });
+      return { ...prev, images, variants: syncVariantPrimaries(images, prev.variants || []) };
+    });
+  };
+
+  const namedVariants = (formData.variants || []).filter(v => v.name.trim());
+
   const toggleVariantImage = (index: number, imageId: string) => {
     setFormData(prev => {
       const variant = (prev.variants || [])[index];
@@ -446,6 +474,21 @@ export const AdminProducts = () => {
       if (!formData.brand?.id || formData.brand.id === 'unknown') {
         addToast('Choose a brand before saving', 'error');
         return;
+      }
+
+      // Nine live products got here with the sale fields the wrong way round
+      // or a price of zero. Both are cheap to catch and expensive to ship.
+      const sellingPrice = Number(formData.price);
+      if (!(sellingPrice > 0)) {
+        addToast('Price must be greater than zero', 'error');
+        return;
+      }
+      if (isOnSale) {
+        const compareAt = Number(formData.compareAtPrice);
+        if (!(compareAt > sellingPrice)) {
+          addToast('The compare-at price is the price before the discount — it has to be higher than the selling price', 'error');
+          return;
+        }
       }
 
       const slug = (formData.slug || '').trim() || slugifyLabel(formData.name || '');
@@ -563,6 +606,10 @@ export const AdminProducts = () => {
             <option value="">All brands</option>
             {brands.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
+          <label className="flex items-center gap-2 text-sm text-gray-600 whitespace-nowrap md:pl-1">
+            <input type="checkbox" checked={attentionOnly} onChange={e => setAttentionOnly(e.target.checked)} />
+            Needs attention
+          </label>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -609,6 +656,11 @@ export const AdminProducts = () => {
                           <div className="min-w-0">
                             <p className="font-medium text-gray-900 line-clamp-1">{product.name}</p>
                             <p className="text-xs text-gray-400 line-clamp-1">/{product.slug}</p>
+                            {attentionReason(product) && (
+                              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-100 rounded px-1.5 py-0.5">
+                                <AlertTriangle className="w-3 h-3" /> {attentionReason(product)}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
@@ -701,6 +753,11 @@ export const AdminProducts = () => {
                              </button>
                           </div>
                           <p className="text-[11px] text-gray-400 mb-3 leading-relaxed">{IMAGE_ASPECT_GUIDE}</p>
+                          {namedVariants.length > 0 && (
+                            <p className="text-[11px] text-gray-500 mb-3 leading-relaxed bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                              This product has options. A photo marked <b>Only: 101</b> shows when 101 is selected and nowhere else; a <b>Shared</b> photo shows only for options that have no photos of their own. To give each shade its own gallery, assign every photo below.
+                            </p>
+                          )}
                           
                           {urlInputVisible && (
                              <div className="mb-4 flex gap-2 animate-fade-in">
@@ -747,6 +804,17 @@ export const AdminProducts = () => {
                                   title="Describes the image for screen readers and search engines"
                                   className="w-full p-1.5 border border-gray-200 rounded text-[10px] outline-none focus:border-brand-green"
                                 />
+                                {namedVariants.length > 0 && (
+                                  <select
+                                    value={img.variantId && namedVariants.some(v => v.id === img.variantId) ? img.variantId : ''}
+                                    onChange={e => assignImageOwner(img.id, e.target.value)}
+                                    title="Which option this photo belongs to"
+                                    className={`w-full p-1.5 border rounded text-[10px] bg-white outline-none focus:border-brand-green ${img.variantId ? 'border-brand-green text-brand-dark font-medium' : 'border-gray-200 text-gray-500'}`}
+                                  >
+                                    <option value="">Shared — every option</option>
+                                    {namedVariants.map(v => <option key={v.id} value={v.id}>Only: {v.name}</option>)}
+                                  </select>
+                                )}
                                 <ImageQualityNote report={imageReports[img.id]} bgColor={img.bgColor} />
                               </div>
                             ))}
@@ -812,6 +880,21 @@ export const AdminProducts = () => {
                                 rows={4}
                                 value={formData.descriptionKa || ''}
                                 onChange={e => setFormData({...formData, descriptionKa: e.target.value})}
+                            />
+                            <h4 className="text-xs font-bold uppercase text-gray-500">Ingredients (English)</h4>
+                            <textarea
+                                className="w-full p-3 border rounded-lg text-sm bg-white focus:ring-1 focus:ring-brand-green outline-none min-h-[80px] font-mono"
+                                rows={3}
+                                placeholder="Aqua, Glycerin, … — leave blank to hide the Ingredients tab"
+                                value={formData.ingredients || ''}
+                                onChange={e => setFormData({...formData, ingredients: e.target.value})}
+                            />
+                            <h4 className="text-xs font-bold uppercase text-gray-500">Ingredients (Georgian)</h4>
+                            <textarea
+                                className="w-full p-3 border rounded-lg text-sm bg-white focus:ring-1 focus:ring-brand-green outline-none min-h-[80px] font-mono"
+                                rows={3}
+                                value={formData.ingredientsKa || ''}
+                                onChange={e => setFormData({...formData, ingredientsKa: e.target.value})}
                             />
                         </div>
 

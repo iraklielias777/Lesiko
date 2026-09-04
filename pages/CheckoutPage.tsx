@@ -279,7 +279,7 @@ export const CheckoutPage = () => {
                       setTimeout(() => setStep('payment'), 0);
                     }}
                   >
-                    Retry
+                    {t('checkout.retry')}
                   </button>
                 )}
               </div>
@@ -291,7 +291,7 @@ export const CheckoutPage = () => {
 
                 {refreshing && (
                   <p className="text-sm text-gray-400 mb-4 flex items-center gap-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Updating prices…
+                    <Loader2 className="w-4 h-4 animate-spin" /> {t('checkout.updatingPrices')}
                   </p>
                 )}
 
@@ -439,7 +439,7 @@ export const CheckoutPage = () => {
                 {isLoading && (
                   <div className="flex flex-col items-center justify-center py-16 text-gray-500 gap-3">
                     <Loader2 className="w-8 h-8 animate-spin text-brand-green" />
-                    <p className="text-sm">Preparing secure payment…</p>
+                    <p className="text-sm">{t('checkout.preparing')}</p>
                   </div>
                 )}
 
@@ -467,7 +467,7 @@ export const CheckoutPage = () => {
                       className="text-sm text-gray-400 hover:text-brand-dark"
                       onClick={() => navigate(`/order-confirmation?order=${pendingOrderId}`)}
                     >
-                      Already paid? Check status
+                      {t('checkout.alreadyPaid')}
                     </button>
                   )}
                 </div>

@@ -62,14 +62,14 @@ export const CartDrawer = () => {
                                 <div className="w-6 h-6 rounded-full bg-brand-green/10 flex items-center justify-center text-brand-green">
                                     <Truck className="w-3.5 h-3.5" />
                                 </div>
-                                <span>You're <span className="text-brand-green">{fmt(awayFromFreeShipping)}</span> away from free shipping!</span>
+                                <span>{t('cart.awayFromFree', { amount: fmt(awayFromFreeShipping) })}</span>
                             </>
                         ) : (
                             <>
                                 <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-green-600">
                                     <Check className="w-3.5 h-3.5" />
                                 </div>
-                                <span className="text-green-600">You've unlocked Free Shipping!</span>
+                                <span className="text-green-600">{t('cart.freeUnlocked')}</span>
                             </>
                         )}
                     </div>
@@ -191,7 +191,7 @@ export const CartDrawer = () => {
               <span className="text-gray-600 font-medium">{t('cart.subtotal')}</span>
               <span className="font-heading font-bold text-xl">{fmt(subtotal)}</span>
             </div>
-            <p className="text-xs text-gray-500 mb-6 text-center">Shipping and taxes calculated at checkout.</p>
+            <p className="text-xs text-gray-500 mb-6 text-center">{t('cart.taxesAtCheckout')}</p>
             <Link to="/checkout" onClick={toggleCart}>
                <Button className="w-full shadow-xl shadow-brand-green/20" size="lg" rightIcon={<ArrowRight className="w-4 h-4" />}>
                  {t('cart.proceedToCheckout')}

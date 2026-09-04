@@ -454,7 +454,9 @@ const renderListing = async (
       metaKeywords: brand.meta_keywords
     };
   } else if (opts.sale) {
-    query = query.not('compare_at_price', 'is', null);
+    // Same predicate the storefront uses: a genuine discount, not merely a
+    // populated compare-at field. See migration 0018.
+    query = query.eq('is_on_sale', true);
   }
 
   const { data: products } = await query;
@@ -511,7 +513,12 @@ const renderStatic = async (
   if (pageKey === 'home') {
     const [{ data: categories }, { data: products }] = await Promise.all([
       db.from('categories').select('slug, label, label_ka').order('position'),
-      db.from('products').select('slug, name, name_ka, price, images').eq('is_trending', true).limit(12)
+      // Trending first, then newest — the same fallback the storefront rail
+      // uses, so a catalogue with nothing flagged still renders a list.
+      db.from('products').select('slug, name, name_ka, price, images')
+        .order('is_trending', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(12)
     ]);
 
     const schema = {

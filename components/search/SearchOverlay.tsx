@@ -305,7 +305,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                         
                         {/* Popular Tags */}
                         <div>
-                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Popular Tags</h3>
+                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{t('search.popularTags')}</h3>
                             <div className="flex gap-2 flex-wrap">
                                 {['Vitamin C', 'Sunscreen', 'Moisturizer', 'Lipstick', 'Anti-aging'].map(term => (
                                     <button 
@@ -327,8 +327,8 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                         <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                             <Search className="w-8 h-8 text-gray-400" />
                         </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-1">No matches found</h3>
-                        <p className="text-gray-500 text-sm">Try searching for "Serum", "Cream", or a brand name.</p>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">{t('search.noMatches')}</h3>
+                        <p className="text-gray-500 text-sm">{t('search.tryHint')}</p>
                     </div>
                 )}
 
@@ -339,7 +339,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                         {/* Suggestions (Categories & Brands) */}
                         {(results.categories.length > 0 || results.brands.length > 0) && (
                             <div>
-                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">Suggestions</h3>
+                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">{t('search.suggestions')}</h3>
                                 <div className="space-y-1" role="group">
                                     {results.categories.map((cat) => {
                                         const index = currentIndexTracker++;
@@ -360,7 +360,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                                     </div>
                                                     <span className="text-sm">
                                                         {highlightText(cat.name, query)}
-                                                        <span className="text-xs text-gray-400 ml-2 italic">in Categories</span>
+                                                        <span className="text-xs text-gray-400 ml-2 italic">{t('search.inCategories')}</span>
                                                     </span>
                                                 </div>
                                                 {isSelected && <ArrowRight className="w-4 h-4 text-brand-green" />}
@@ -386,7 +386,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                                     </div>
                                                     <span className="text-sm">
                                                         {highlightText(brand.name, query)}
-                                                        <span className="text-xs text-gray-400 ml-2 italic">Brand</span>
+                                                        <span className="text-xs text-gray-400 ml-2 italic">{t('search.brand')}</span>
                                                     </span>
                                                 </div>
                                                 {isSelected && <ArrowRight className="w-4 h-4 text-brand-green" />}
@@ -400,7 +400,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                         {/* Products */}
                         {results.products.length > 0 && (
                             <div>
-                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">Products</h3>
+                                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">{t('search.products')}</h3>
                                 <div className="space-y-2" role="group">
                                     {results.products.map((product) => {
                                         const index = currentIndexTracker++;
@@ -426,7 +426,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                                     className="w-14 h-14 rounded-lg flex-shrink-0"
                                                 >
                                                     {product.compareAtPrice && product.compareAtPrice > product.price && (
-                                                        <div className="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-bold px-1 rounded-bl">SALE</div>
+                                                        <div className="absolute top-0 right-0 bg-red-500 text-white text-[8px] font-bold px-1 rounded-bl">{t('search.sale')}</div>
                                                     )}
                                                 </ProductThumb>
                                                 <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -445,7 +445,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
                                                     {product.videoPlaybackId && (
                                                         <div className="flex items-center gap-1 mt-1">
                                                             <PlayCircle className="w-3 h-3 text-brand-green" />
-                                                            <span className="text-[10px] text-gray-400">Video Available</span>
+                                                            <span className="text-[10px] text-gray-400">{t('search.videoAvailable')}</span>
                                                         </div>
                                                     )}
                                                 </div>

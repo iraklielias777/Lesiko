@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Tag } from 'lucide-react';
@@ -13,6 +14,7 @@ import { usePageSeo, useSiteUrl } from '../lib/use-seo';
  * at them.
  */
 export const BrandIndexPage = () => {
+  const { t } = useTranslation();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
   const seo = usePageSeo('brands');
@@ -65,7 +67,7 @@ export const BrandIndexPage = () => {
             ))}
           </div>
         ) : brands.length === 0 ? (
-          <p className="text-center text-gray-500 py-20">No brands to show yet.</p>
+          <p className="text-center text-gray-500 py-20">{t('common.noBrands')}</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {brands.map((brand, index) => (

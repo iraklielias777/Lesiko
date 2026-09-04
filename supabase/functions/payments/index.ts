@@ -28,6 +28,24 @@ const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
 
+type Severity = 'info' | 'warning' | 'critical';
+
+/**
+ * Operator log. Anything a person needs to act on, or — until transactional
+ * email exists — needs to be told about, lands in ops_alerts and surfaces on
+ * the admin dashboard. Never throws: an alert that cannot be written must not
+ * take a payment down with it.
+ */
+const alert = async (
+  kind: string,
+  severity: Severity,
+  message: string,
+  context: Record<string, unknown> = {},
+): Promise<void> => {
+  const { error } = await admin.from('ops_alerts').insert({ kind, severity, message, context });
+  if (error) console.error('ops_alerts insert failed', error, { kind, message });
+};
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers':
@@ -297,6 +315,12 @@ const createToken = async (req: Request): Promise<Response> => {
     priced = await repriceOrder(orderId);
   } catch (err) {
     console.error('repriceOrder failed', err);
+    await alert(
+      err instanceof StockError ? 'checkout_stock_short' : 'checkout_reprice_failed',
+      err instanceof StockError ? 'warning' : 'critical',
+      err instanceof Error ? err.message : 'Could not reprice order',
+      { orderId, orderNumber: order.order_number },
+    );
     const status = err instanceof StockError ? 409 : 400;
     return json({
       error: err instanceof Error ? err.message : 'Could not reprice order',
@@ -350,6 +374,9 @@ const createToken = async (req: Request): Promise<Response> => {
   const response = flittJson?.response ?? flittJson;
   if (!response || response.response_status !== 'success' || !response.token) {
     console.error('Flitt create-token failed', response);
+    await alert('flitt_token_rejected', 'warning', 'Flitt rejected a payment token request', {
+      orderId, orderNumber: order.order_number, errorCode: response?.error_code, errorMessage: response?.error_message,
+    });
     return json({
       error: response?.error_message || 'Flitt rejected the payment token request',
       detail: response?.error_code,
@@ -380,6 +407,9 @@ const handleCallback = async (req: Request): Promise<Response> => {
       order_id: payload.order_id,
       order_status: payload.order_status,
     });
+    await alert('callback_signature_mismatch', 'critical',
+      'A payment callback arrived with an invalid signature and was ignored',
+      { flittOrderId: payload.order_id, orderStatus: payload.order_status });
     // Still 200 so Flitt does not hammer retries for forever — but we do not
     // mutate state. Operators can inspect logs.
     return new Response('invalid signature', { status: 200 });
@@ -401,7 +431,12 @@ const handleCallback = async (req: Request): Promise<Response> => {
       .select('id, payment_status')
       .eq('order_number', flittOrderId)
       .maybeSingle();
-    if (!byNumber) return new Response('ok', { status: 200 });
+    if (!byNumber) {
+      await alert('callback_unknown_order', 'warning',
+        'A verified payment callback referenced an order that does not exist',
+        { flittOrderId, orderStatus: payload.order_status, paymentId: payload.payment_id });
+      return new Response('ok', { status: 200 });
+    }
     return applyCallback(byNumber.id, byNumber.payment_status, payload);
   }
 
@@ -462,7 +497,12 @@ const decrementInventoryForOrder = async (orderId: string): Promise<void> => {
       .update({ inventory_quantity: nextQty, variants })
       .eq('id', product.id);
 
-    if (updateError) console.error('inventory decrement failed', updateError);
+    if (updateError) {
+      console.error('inventory decrement failed', updateError);
+      await alert('inventory_decrement_failed', 'critical',
+        `Stock was not reduced for a paid order line (${item.product_id})`,
+        { orderId, productId: item.product_id, variant: item.variant_name, quantity: qty, error: updateError.message });
+    }
   }
 };
 
@@ -487,12 +527,29 @@ const applyCallback = async (
 
   await admin.from('orders').update(update).eq('id', orderId);
 
+  const { data: summary } = await admin
+    .from('orders')
+    .select('order_number, customer_email, total')
+    .eq('id', orderId)
+    .maybeSingle();
+
   if (paymentStatus === 'paid') {
+    // Until email is wired up this is how the merchant learns a sale happened.
+    await alert('order_paid', 'info',
+      `Order ${summary?.order_number ?? orderId} paid — ${summary?.total ?? '?'} by ${summary?.customer_email ?? 'unknown'}`,
+      { orderId, orderNumber: summary?.order_number, total: summary?.total, email: summary?.customer_email, paymentId });
     try {
       await decrementInventoryForOrder(orderId);
     } catch (err) {
       console.error('decrementInventoryForOrder failed', err);
+      await alert('inventory_decrement_failed', 'critical',
+        `Stock was not reduced for paid order ${summary?.order_number ?? orderId}`,
+        { orderId, error: err instanceof Error ? err.message : String(err) });
     }
+  } else {
+    await alert('payment_failed', 'info',
+      `Payment ${orderStatusValue} for order ${summary?.order_number ?? orderId}`,
+      { orderId, orderNumber: summary?.order_number, orderStatus: orderStatusValue, paymentId });
   }
 
   return new Response('ok', { status: 200 });

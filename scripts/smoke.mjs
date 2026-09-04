@@ -71,32 +71,43 @@ check('anon cannot write products', !!anonWriteError, anonWriteError?.code);
 
 // ------------------------------------------------------------ guest checkout
 
-const orderId = crypto.randomUUID();
 const orderNumber = `SMOKE${Date.now().toString().slice(-6)}`;
 const guestEmail = `smoke+${Date.now()}@example.com`;
 
-const { error: orderError } = await anon.from('orders').insert({
-  id: orderId,
-  order_number: orderNumber,
-  customer_email: guestEmail,
-  customer_name: 'Smoke Test',
-  shipping_address: {
-    firstName: 'Smoke', lastName: 'Test', email: guestEmail,
-    address1: '1 Test Way', city: 'Tbilisi', state: 'TB', zip: '0100', country: 'Georgia',
+// Since migration 0019 the only way to create an order is the atomic RPC;
+// the direct table inserts below are expected to be refused.
+const { data: rpcResult, error: orderError } = await anon.rpc('create_pending_order', {
+  p_order: {
+    orderNumber,
+    customerEmail: guestEmail,
+    customerName: 'Smoke Test',
+    shippingAddress: {
+      firstName: 'Smoke', lastName: 'Test', email: guestEmail,
+      address1: '1 Test Way', city: 'Tbilisi', state: 'TB', zip: '0100', country: 'GE',
+    },
+    subtotal: 45, shipping: 15, tax: 3.6, total: 63.6,
   },
-  payment_status: 'paid', status: 'Processing',
-  subtotal: 45, shipping: 15, tax: 3.6, total: 63.6,
+  p_items: [{
+    productId: products?.[0]?.id,
+    productName: products?.[0]?.name ?? 'Unknown',
+    quantity: 1,
+    price: 45,
+  }],
 });
-check('guest can place an order', !orderError, orderError?.message);
+const orderId = rpcResult?.[0]?.order_id;
+check('guest creates an order through the RPC', !orderError && !!orderId, orderError?.message);
+check('RPC returns a public token for polling', !!rpcResult?.[0]?.public_token);
 
-const { error: itemsError } = await anon.from('order_items').insert([{
-  order_id: orderId,
-  product_id: products?.[0]?.id,
-  product_name: products?.[0]?.name ?? 'Unknown',
-  quantity: 1,
-  price: 45,
-}]);
-check('guest can add order items', !itemsError, itemsError?.message);
+const { error: directOrderError } = await anon.from('orders').insert({
+  order_number: `${orderNumber}X`, customer_email: guestEmail, payment_status: 'pending',
+});
+check('direct order insert is refused', !!directOrderError, 'anon could insert into orders directly');
+
+const { error: emptyBagError } = await anon.rpc('create_pending_order', {
+  p_order: { orderNumber: `${orderNumber}E`, customerEmail: guestEmail, shippingAddress: {} },
+  p_items: [],
+});
+check('RPC rejects an empty bag', !!emptyBagError, 'empty item list was accepted');
 
 const { data: leakedOrders } = await anon.from('orders').select('id');
 check('anon cannot read other orders', (leakedOrders?.length ?? 0) === 0,

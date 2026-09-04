@@ -54,23 +54,31 @@ export const withVariantOwnership = (
 };
 
 /**
- * Photos the shopper should see for the selected option: that variant's shots,
- * plus unassigned product-level images. Other variants' photos stay hidden.
- * A product with no variants returns the full gallery.
+ * Photos the shopper should see for the selected option.
+ *
+ * An option that has photographs of its own shows only those — a shade's
+ * swatch and its packshot, not the six other shades' packshots alongside.
+ * An option with no photographs of its own falls back to the shared,
+ * product-level set (images assigned to no variant), and a product with no
+ * variants shows everything. Nothing is ever hidden with no replacement: if
+ * both the option and the shared set are empty, the full gallery shows.
  */
 export const galleryFor = (
   product: Pick<Product, 'images' | 'variants'>,
   variant?: ProductVariant | null,
 ): ProductImage[] => {
-  if (!product.variants?.length) return product.images || [];
+  const all = product.images || [];
+  if (!product.variants?.length) return all;
+
   const images = withVariantOwnership(product);
   const claimed = claimedUrls(product);
-  return images.filter(img => {
-    if (variant && (img.variantId === variant.id || img.url === variant.imageUrl)) return true;
-    if (img.variantId) return false;
-    if (claimed.has(img.url)) return false;
-    return true;
-  });
+  const shared = images.filter(img => !img.variantId && !claimed.has(img.url));
+
+  if (!variant) return shared.length ? shared : all;
+
+  const own = images.filter(img => img.variantId === variant.id || img.url === variant.imageUrl);
+  if (own.length) return own;
+  return shared.length ? shared : all;
 };
 
 export const defaultVariantOf = (product: Pick<Product, 'variants'>): ProductVariant | null => {

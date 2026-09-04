@@ -125,7 +125,7 @@ export const CartPage = () => {
                 </div>
                 <div className="flex justify-between text-gray-600">
                   <span>{t('common.shipping')}</span>
-                  <span>{shipping === 0 ? 'Free' : fmt(shipping)}</span>
+                  <span>{shipping === 0 ? t('common.free') : fmt(shipping)}</span>
                 </div>
                 <div className="flex justify-between text-gray-600">
                   <span>{t('common.tax')}</span>
@@ -141,12 +141,12 @@ export const CartPage = () => {
                 {awayFromFreeShipping > 0 ? (
                   <>
                     <Truck className="w-4 h-4 text-brand-green flex-shrink-0" />
-                    <span>You're <span className="font-bold text-brand-green">{fmt(awayFromFreeShipping)}</span> away from free shipping.</span>
+                    <span>{t('cart.awayFromFree', { amount: fmt(awayFromFreeShipping) })}</span>
                   </>
                 ) : (
                   <>
                     <Check className="w-4 h-4 text-green-600 flex-shrink-0" />
-                    <span className="text-green-700 font-medium">Free shipping unlocked.</span>
+                    <span className="text-green-700 font-medium">{t('cart.freeUnlocked')}</span>
                   </>
                 )}
               </div>

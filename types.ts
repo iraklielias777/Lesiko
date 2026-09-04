@@ -27,6 +27,9 @@ export interface Product {
   videoPlaybackId?: string; // NEW: Mux Video ID
   isNew?: boolean;
   isTrending?: boolean; // New field for merchandising
+  /** INCI list or free text, per language. The tab hides when both are empty. */
+  ingredients?: string;
+  ingredientsKa?: string;
   averageRating: number;
   reviewCount: number;
   tags?: string[];
@@ -273,16 +276,61 @@ export interface HelpContent {
   hoursKa?: string;
 }
 
+export interface FooterLink {
+  id: string;
+  label: string;
+  labelKa?: string;
+  /** A storefront path (`/help`) or a full URL; full URLs open in a new tab. */
+  href: string;
+}
+
+export interface FooterColumn {
+  id: string;
+  title: string;
+  titleKa?: string;
+  links: FooterLink[];
+  /**
+   * When set, this many top categories are inserted after the explicit links,
+   * so the column follows the catalogue without anyone editing it.
+   */
+  autoCategories?: number;
+}
+
+export type SocialPlatform =
+  | 'instagram' | 'facebook' | 'twitter' | 'tiktok' | 'youtube' | 'telegram' | 'whatsapp';
+
+export interface FooterSocial {
+  id: string;
+  platform: SocialPlatform;
+  url: string;
+}
+
+/**
+ * Everything in the footer is editable: the blurb, every link column, the
+ * social icons, the contact block and the legal line. `{year}`, `{store}` and
+ * `{email}` are substituted at render time so the copy never goes stale.
+ */
 export interface FooterContent {
   about: string;
   aboutKa?: string;
+  columns: FooterColumn[];
   newsletterTitle: string;
   newsletterTitleKa?: string;
   newsletterText: string;
   newsletterTextKa?: string;
-  instagramUrl: string;
-  facebookUrl: string;
-  twitterUrl: string;
+  /** Label for the contact button. Defaults to the support email itself. */
+  contactLabel?: string;
+  contactLabelKa?: string;
+  socials: FooterSocial[];
+  legalLine?: string;
+  legalLineKa?: string;
+  bottomLinks: FooterLink[];
+  /** @deprecated read-only compatibility with rows saved before `socials`. */
+  instagramUrl?: string;
+  /** @deprecated */
+  facebookUrl?: string;
+  /** @deprecated */
+  twitterUrl?: string;
 }
 
 export interface SocialContent {

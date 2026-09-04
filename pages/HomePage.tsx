@@ -230,8 +230,8 @@ export const HomePage = () => {
             </Link>
           </div>
           {/* items-start: on mobile, an open accordion must not stretch sibling cards to the same height (empty white gap). */}
-          <div className="flex items-start overflow-x-auto snap-x snap-mandatory gap-4 pb-8 -mx-4 px-4 md:grid md:grid-cols-3 lg:grid-cols-6 md:gap-6 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
-            {categories.slice(0, 6).map((cat) => {
+          <div className="flex items-start overflow-x-auto snap-x snap-mandatory gap-4 pb-8 -mx-4 px-4 md:grid md:grid-cols-3 lg:grid-cols-6 xl:grid-cols-7 md:gap-6 md:pb-0 md:mx-0 md:px-0 scrollbar-hide">
+            {categories.slice(0, 7).map((cat) => {
               const isOpen = expandedCategory === cat.slug;
               return (
                 <div key={cat.slug} className={`snap-start shrink-0 w-[260px] md:w-auto flex flex-col self-start bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 ${isOpen ? 'ring-1 ring-brand-green' : ''}`}>

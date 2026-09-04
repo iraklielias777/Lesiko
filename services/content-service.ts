@@ -1,6 +1,8 @@
 
 import {
   FooterContent,
+  FooterSocial,
+  SocialPlatform,
   HelpContent,
   HeroContent,
   PromoContent,
@@ -99,13 +101,70 @@ export const DEFAULT_HELP: HelpContent = {
 export const DEFAULT_FOOTER: FooterContent = {
   about: 'Empowering your beauty journey with premium, science-backed skincare and cosmetics. Discover your unique glow with LesiKo.',
   aboutKa: 'პრემიუმ, მეცნიერულად დასაბუთებული კოსმეტიკა თქვენი სილამაზისთვის.',
+  columns: [
+    {
+      id: 'shop',
+      title: 'Shop',
+      titleKa: 'მაღაზია',
+      autoCategories: 3,
+      links: [
+        { id: 'shop-all', label: 'Shop all', labelKa: 'ყველა პროდუქტი', href: '/products' },
+        { id: 'sale', label: 'Sale', labelKa: 'ფასდაკლება', href: '/sale' }
+      ]
+    },
+    {
+      id: 'support',
+      title: 'Support',
+      titleKa: 'დახმარება',
+      links: [
+        { id: 'faq', label: 'FAQs', labelKa: 'ხშირი კითხვები', href: '/help' },
+        { id: 'delivery', label: 'Delivery', labelKa: 'მიწოდება', href: '/help' },
+        { id: 'contact', label: 'Contact us', labelKa: 'კონტაქტი', href: '/help' },
+        { id: 'track', label: 'Track your order', labelKa: 'შეკვეთის თვალყური', href: '/track-order' },
+        { id: 'account', label: 'My account', labelKa: 'ჩემი ანგარიში', href: '/account' }
+      ]
+    }
+  ],
   newsletterTitle: 'Stay in the Know',
   newsletterTitleKa: 'იყავით კურსში',
-  newsletterText: 'Subscribe to receive updates, access to exclusive deals, and more.',
-  newsletterTextKa: 'გამოიწერეთ სიახლეები და მიიღეთ ექსკლუზიური შეთავაზებები.',
-  instagramUrl: 'https://instagram.com/lesiko_official',
-  facebookUrl: 'https://facebook.com/lesiko',
-  twitterUrl: 'https://twitter.com/lesiko'
+  newsletterText: 'Questions about an order or the catalogue? Email us and we will help.',
+  newsletterTextKa: 'კითხვა გაქვთ შეკვეთაზე ან პროდუქტზე? მოგვწერეთ და დაგეხმარებით.',
+  contactLabel: 'Email {email}',
+  contactLabelKa: 'მოგვწერეთ: {email}',
+  socials: [
+    { id: 'ig', platform: 'instagram', url: 'https://instagram.com/lesiko_ge' },
+    { id: 'fb', platform: 'facebook', url: 'https://facebook.com/lesiko' }
+  ],
+  legalLine: '© {year} {store}. All rights reserved.',
+  legalLineKa: '© {year} {store}. ყველა უფლება დაცულია.',
+  bottomLinks: [
+    { id: 'support', label: 'Support', labelKa: 'დახმარება', href: '/help' }
+  ]
+};
+
+/**
+ * Rows saved before the footer became fully editable carry three social URL
+ * fields and no columns. They are lifted into the new shape on read so the
+ * storefront never renders a half-empty footer, and dropped on the next save.
+ */
+export const normaliseFooter = (raw: Partial<FooterContent>): FooterContent => {
+  const legacySocials: FooterSocial[] = [
+    ['instagram', raw.instagramUrl],
+    ['facebook', raw.facebookUrl],
+    ['twitter', raw.twitterUrl]
+  ]
+    .filter((entry): entry is [SocialPlatform, string] => !!entry[1] && !!entry[1].trim())
+    .map(([platform, url]) => ({ id: platform, platform, url: url.trim() }));
+
+  const { instagramUrl: _ig, facebookUrl: _fb, twitterUrl: _tw, ...rest } = raw;
+
+  return {
+    ...DEFAULT_FOOTER,
+    ...rest,
+    columns: Array.isArray(raw.columns) && raw.columns.length ? raw.columns : DEFAULT_FOOTER.columns,
+    socials: Array.isArray(raw.socials) ? raw.socials : legacySocials.length ? legacySocials : DEFAULT_FOOTER.socials,
+    bottomLinks: Array.isArray(raw.bottomLinks) ? raw.bottomLinks : DEFAULT_FOOTER.bottomLinks
+  };
 };
 
 export const DEFAULT_SOCIAL: SocialContent = {
@@ -191,8 +250,12 @@ export const ContentService = {
   getHelpContent: (): Promise<HelpContent> => readBlock('help_content', DEFAULT_HELP),
   updateHelpContent: (content: HelpContent): Promise<void> => writeBlock('help_content', content),
 
-  getFooterContent: (): Promise<FooterContent> => readBlock('footer_content', DEFAULT_FOOTER),
-  updateFooterContent: (content: FooterContent): Promise<void> => writeBlock('footer_content', content),
+  getFooterContent: async (): Promise<FooterContent> => {
+    const content = await rawBlock('footer_content');
+    return normaliseFooter((content as Partial<FooterContent>) || {});
+  },
+  updateFooterContent: (content: FooterContent): Promise<void> =>
+    writeBlock('footer_content', normaliseFooter(content)),
 
   getSocialContent: (): Promise<SocialContent> => readBlock('social_content', DEFAULT_SOCIAL),
   updateSocialContent: (content: SocialContent): Promise<void> => writeBlock('social_content', content),

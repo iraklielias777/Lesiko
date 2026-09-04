@@ -45,6 +45,10 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
 
   const displayName = i18n.language === 'ka' ? (product.nameKa || product.name) : product.name;
   const displayDesc = i18n.language === 'ka' ? (product.descriptionKa || product.description) : product.description;
+  // Real per-product ingredients. The tab only exists when there is something
+  // to show — the old build rendered one fabricated INCI list on every product.
+  const displayIngredients = (i18n.language === 'ka' ? (product.ingredientsKa || product.ingredients) : (product.ingredients || product.ingredientsKa)) || '';
+  const tabs: ('desc' | 'ingredients')[] = displayIngredients.trim() ? ['desc', 'ingredients'] : ['desc'];
 
   const applyVariantMedia = (variant: ProductVariant | null) => {
     const next = galleryFor(product, variant);
@@ -55,6 +59,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
   useEffect(() => {
     setQuantity(1);
     setIsDescExpanded(false);
+    setActiveTab('desc');
 
     const initial = defaultVariantOf(product);
     setSelectedVariant(initial);
@@ -232,7 +237,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
                     onClick={() => setIsDescExpanded(!isDescExpanded)} 
                     className="text-brand-green font-bold text-sm mt-2 hover:underline focus:outline-none"
                 >
-                    {isDescExpanded ? 'Read Less' : 'Read More'}
+                    {isDescExpanded ? t('common.readLess') : t('common.readMore')}
                 </button>
             )}
         </div>
@@ -302,7 +307,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
         <div className="grid grid-cols-2 gap-4 mb-8 bg-gray-50 p-4 rounded-xl border border-gray-100">
            <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
              <Truck className="w-5 h-5 text-brand-green" />
-             <span>{t('product.freeShippingBadge', { amount: freeShippingThreshold })}</span>
+             <span>{t('product.freeShippingBadge', { amount: fmt(freeShippingThreshold) })}</span>
            </div>
            <div className="flex items-center gap-3 text-sm text-gray-700 font-medium">
              <ShieldCheck className="w-5 h-5 text-brand-green" />
@@ -317,7 +322,7 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
         {/* Optimized Tabs for Large Text */}
         <div className="mt-auto pt-6 border-t border-gray-200">
            <div className="flex gap-8 border-b border-gray-200 mb-6">
-             {['desc', 'ingredients'].map((tab) => (
+             {tabs.map((tab) => (
                <button
                  key={tab}
                  onClick={() => setActiveTab(tab as any)}
@@ -339,19 +344,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
            <div className="text-gray-600 text-sm leading-relaxed max-h-[200px] overflow-y-auto custom-scrollbar pr-2">
               {activeTab === 'desc' && (
                 <div className="space-y-4">
-                    <p>{displayDesc}</p>
-                    <p>Designed for daily use. Apply to clean skin morning and night.</p>
+                    <p className="whitespace-pre-line">{displayDesc}</p>
                 </div>
               )}
               {activeTab === 'ingredients' && (
-                <div className="space-y-2">
-                    <p className="font-mono text-xs text-gray-500">
-                        Aqua (Water), Glycerin, Butylene Glycol, Caprylic/Capric Triglyceride, Squalane, Tocopherol (Vitamin E), Aloe Barbadensis Leaf Juice, Phenoxyethanol, Ethylhexylglycerin, Carbomer, Sodium Hyaluronate, Panthenol, Citric Acid.
-                    </p>
-                    <p className="text-xs text-gray-400 italic mt-2">
-                        * Ingredients are subject to change at the manufacturer's discretion. For the most complete and up-to-date list of ingredients, refer to the product packaging.
-                    </p>
-                </div>
+                <p className="font-mono text-xs text-gray-500 whitespace-pre-line">{displayIngredients}</p>
               )}
            </div>
         </div>

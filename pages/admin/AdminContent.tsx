@@ -1,20 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  ChevronDown,
-  ChevronUp,
-  Link as LinkIcon,
-  Loader2,
-  Plus,
-  Save,
-  Trash2,
-  UploadCloud
-} from 'lucide-react';
+import { ChevronDown, ChevronUp, Link as LinkIcon, Loader2, Plus, Save, Trash2, UploadCloud, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useToastStore } from '../../store/toast-store';
 import { ContentService } from '../../services/content-service';
 import { StorageService } from '../../services/storage-service';
 import { FaqItem, FooterContent, HelpContent, HeroContent, SocialContent } from '../../types';
+import type { FooterColumn, FooterLink, FooterSocial, SocialPlatform } from '../../types';
 
 type Tab = 'hero' | 'help' | 'footer' | 'social';
 
@@ -219,6 +211,56 @@ export const AdminContent = () => {
     setFooter(prev => (prev ? { ...prev, [field]: value } : prev));
     markDirty('footer');
   };
+
+  // ----- footer structure: columns, links, socials ---------------------------
+  const patchFooter = (patch: Partial<FooterContent>) => {
+    setFooter(prev => (prev ? { ...prev, ...patch } : prev));
+    markDirty('footer');
+  };
+
+  const swap = <T,>(list: T[], index: number, delta: number): T[] => {
+    const target = index + delta;
+    if (target < 0 || target >= list.length) return list;
+    const next = [...list];
+    [next[index], next[target]] = [next[target], next[index]];
+    return next;
+  };
+
+  const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+
+  const patchColumn = (id: string, patch: Partial<FooterColumn>) =>
+    patchFooter({ columns: (footer?.columns || []).map(c => (c.id === id ? { ...c, ...patch } : c)) });
+  const addColumn = () =>
+    patchFooter({ columns: [...(footer?.columns || []), { id: newId('col'), title: '', titleKa: '', links: [] }] });
+  const removeColumn = (id: string) => patchFooter({ columns: (footer?.columns || []).filter(c => c.id !== id) });
+  const moveColumn = (index: number, delta: number) => patchFooter({ columns: swap(footer?.columns || [], index, delta) });
+
+  const patchLink = (columnId: string, linkId: string, patch: Partial<FooterLink>) =>
+    patchColumn(columnId, {
+      links: (footer?.columns.find(c => c.id === columnId)?.links || []).map(l => (l.id === linkId ? { ...l, ...patch } : l)),
+    });
+  const addLink = (columnId: string) =>
+    patchColumn(columnId, {
+      links: [...(footer?.columns.find(c => c.id === columnId)?.links || []), { id: newId('link'), label: '', labelKa: '', href: '/' }],
+    });
+  const removeLink = (columnId: string, linkId: string) =>
+    patchColumn(columnId, { links: (footer?.columns.find(c => c.id === columnId)?.links || []).filter(l => l.id !== linkId) });
+  const moveLink = (columnId: string, index: number, delta: number) =>
+    patchColumn(columnId, { links: swap(footer?.columns.find(c => c.id === columnId)?.links || [], index, delta) });
+
+  const patchBottomLink = (linkId: string, patch: Partial<FooterLink>) =>
+    patchFooter({ bottomLinks: (footer?.bottomLinks || []).map(l => (l.id === linkId ? { ...l, ...patch } : l)) });
+  const addBottomLink = () =>
+    patchFooter({ bottomLinks: [...(footer?.bottomLinks || []), { id: newId('bottom'), label: '', labelKa: '', href: '/' }] });
+  const removeBottomLink = (linkId: string) => patchFooter({ bottomLinks: (footer?.bottomLinks || []).filter(l => l.id !== linkId) });
+
+  const patchSocial = (id: string, patch: Partial<FooterSocial>) =>
+    patchFooter({ socials: (footer?.socials || []).map(s => (s.id === id ? { ...s, ...patch } : s)) });
+  const addSocial = () =>
+    patchFooter({ socials: [...(footer?.socials || []), { id: newId('social'), platform: 'instagram', url: '' }] });
+  const removeSocial = (id: string) => patchFooter({ socials: (footer?.socials || []).filter(s => s.id !== id) });
+
+  const SOCIAL_PLATFORMS: SocialPlatform[] = ['instagram', 'facebook', 'tiktok', 'youtube', 'telegram', 'whatsapp', 'twitter'];
 
   const setSocialField = (field: Exclude<keyof SocialContent, 'images'>, value: string) => {
     setSocial(prev => (prev ? { ...prev, [field]: value } : prev));
@@ -447,27 +489,120 @@ export const AdminContent = () => {
       )}
 
       {tab === 'footer' && (
-        <Section title="Footer" hint="About blurb, newsletter copy and the social links in the footer.">
+        <Section title="Footer" hint="Everything in the footer is editable here: the blurb, every link column, the social icons, the contact block and the legal line.">
           <div className="grid md:grid-cols-2 gap-6">
             <TextArea label="About (EN)" value={footer.about} onChange={v => setFooterField('about', v)} rows={4} />
             <TextArea label="About (KA)" value={footer.aboutKa || ''} onChange={v => setFooterField('aboutKa', v)} rows={4} accent />
           </div>
 
-          <div className="grid md:grid-cols-2 gap-4">
-            <Input label="Newsletter title (EN)" value={footer.newsletterTitle} onChange={e => setFooterField('newsletterTitle', e.target.value)} />
-            <Input label="Newsletter title (KA)" value={footer.newsletterTitleKa || ''} onChange={e => setFooterField('newsletterTitleKa', e.target.value)} />
-          </div>
-          <div className="grid md:grid-cols-2 gap-6">
-            <TextArea label="Newsletter text (EN)" value={footer.newsletterText} onChange={v => setFooterField('newsletterText', v)} />
-            <TextArea label="Newsletter text (KA)" value={footer.newsletterTextKa || ''} onChange={v => setFooterField('newsletterTextKa', v)} accent />
+          {/* ---------------------------------------------------- link columns */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Link columns</h4>
+              <button type="button" onClick={addColumn} className="text-xs font-bold text-brand-green flex items-center gap-1 hover:underline">
+                <Plus className="w-3 h-3" /> Add column
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">Links are storefront paths such as <code>/help</code> or full URLs, which open in a new tab. "Auto categories" appends that many top categories to the column so it follows the catalogue.</p>
+
+            {footer.columns.map((column, ci) => (
+              <div key={column.id} className="bg-gray-50 border border-gray-100 rounded-xl p-4 space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="grid md:grid-cols-3 gap-3 flex-1">
+                    <Input label="Column title (EN)" value={column.title} onChange={e => patchColumn(column.id, { title: e.target.value })} />
+                    <Input label="Column title (KA)" value={column.titleKa || ''} onChange={e => patchColumn(column.id, { titleKa: e.target.value })} />
+                    <Input label="Auto categories" type="number" min="0" max="10" value={column.autoCategories ?? 0} onChange={e => patchColumn(column.id, { autoCategories: Math.max(0, Number(e.target.value) || 0) || undefined })} />
+                  </div>
+                  <div className="flex flex-col gap-1 pt-6">
+                    <button type="button" onClick={() => moveColumn(ci, -1)} className="p-1.5 text-gray-400 hover:text-gray-900" title="Move up"><ArrowUp className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => moveColumn(ci, 1)} className="p-1.5 text-gray-400 hover:text-gray-900" title="Move down"><ArrowDown className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => removeColumn(column.id)} className="p-1.5 text-gray-400 hover:text-red-500" title="Remove column"><Trash2 className="w-4 h-4" /></button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {column.links.map((link, li) => (
+                    <div key={link.id} className="grid grid-cols-12 gap-2 items-center">
+                      <div className="col-span-4"><Input placeholder="Label (EN)" value={link.label} onChange={e => patchLink(column.id, link.id, { label: e.target.value })} /></div>
+                      <div className="col-span-3"><Input placeholder="Label (KA)" value={link.labelKa || ''} onChange={e => patchLink(column.id, link.id, { labelKa: e.target.value })} /></div>
+                      <div className="col-span-4"><Input placeholder="/help or https://…" value={link.href} onChange={e => patchLink(column.id, link.id, { href: e.target.value })} /></div>
+                      <div className="col-span-1 flex justify-end gap-0.5">
+                        <button type="button" onClick={() => moveLink(column.id, li, -1)} className="p-1 text-gray-300 hover:text-gray-900" title="Move up"><ArrowUp className="w-3.5 h-3.5" /></button>
+                        <button type="button" onClick={() => moveLink(column.id, li, 1)} className="p-1 text-gray-300 hover:text-gray-900" title="Move down"><ArrowDown className="w-3.5 h-3.5" /></button>
+                        <button type="button" onClick={() => removeLink(column.id, link.id)} className="p-1 text-gray-300 hover:text-red-500" title="Remove link"><Trash2 className="w-3.5 h-3.5" /></button>
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => addLink(column.id)} className="text-xs font-bold text-brand-green flex items-center gap-1 hover:underline">
+                    <Plus className="w-3 h-3" /> Add link
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="grid md:grid-cols-3 gap-4">
-            <Input label="Instagram URL" value={footer.instagramUrl} onChange={e => setFooterField('instagramUrl', e.target.value)} />
-            <Input label="Facebook URL" value={footer.facebookUrl} onChange={e => setFooterField('facebookUrl', e.target.value)} />
-            <Input label="Twitter URL" value={footer.twitterUrl} onChange={e => setFooterField('twitterUrl', e.target.value)} />
+          {/* ---------------------------------------------------- contact block */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Contact block</h4>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Input label="Title (EN)" value={footer.newsletterTitle} onChange={e => setFooterField('newsletterTitle', e.target.value)} />
+              <Input label="Title (KA)" value={footer.newsletterTitleKa || ''} onChange={e => setFooterField('newsletterTitleKa', e.target.value)} />
+            </div>
+            <div className="grid md:grid-cols-2 gap-6">
+              <TextArea label="Text (EN)" value={footer.newsletterText} onChange={v => setFooterField('newsletterText', v)} />
+              <TextArea label="Text (KA)" value={footer.newsletterTextKa || ''} onChange={v => setFooterField('newsletterTextKa', v)} accent />
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Input label="Button label (EN)" value={footer.contactLabel || ''} onChange={e => setFooterField('contactLabel', e.target.value)} placeholder="Email {email}" />
+              <Input label="Button label (KA)" value={footer.contactLabelKa || ''} onChange={e => setFooterField('contactLabelKa', e.target.value)} placeholder="მოგვწერეთ: {email}" />
+            </div>
+            <p className="text-xs text-gray-400">The button emails the support address from Settings. <code>{'{email}'}</code> inserts that address into the label.</p>
           </div>
-          <p className="text-xs text-gray-400">Leave a URL blank to hide that icon in the footer.</p>
+
+          {/* ---------------------------------------------------- socials */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Social links</h4>
+              <button type="button" onClick={addSocial} className="text-xs font-bold text-brand-green flex items-center gap-1 hover:underline">
+                <Plus className="w-3 h-3" /> Add social
+              </button>
+            </div>
+            {footer.socials.map(social => (
+              <div key={social.id} className="grid grid-cols-12 gap-2 items-center">
+                <div className="col-span-3">
+                  <select value={social.platform} onChange={e => patchSocial(social.id, { platform: e.target.value as SocialPlatform })} className="w-full p-3 border border-gray-200 rounded-lg text-sm bg-white capitalize">
+                    {SOCIAL_PLATFORMS.map(pl => <option key={pl} value={pl}>{pl}</option>)}
+                  </select>
+                </div>
+                <div className="col-span-8"><Input placeholder="https://…" value={social.url} onChange={e => patchSocial(social.id, { url: e.target.value })} /></div>
+                <button type="button" onClick={() => removeSocial(social.id)} className="col-span-1 justify-self-end p-1.5 text-gray-300 hover:text-red-500" title="Remove"><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+            <p className="text-xs text-gray-400">An icon only appears when its URL is filled in.</p>
+          </div>
+
+          {/* ---------------------------------------------------- legal line */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-gray-500">Bottom bar</h4>
+            <div className="grid md:grid-cols-2 gap-4">
+              <Input label="Legal line (EN)" value={footer.legalLine || ''} onChange={e => setFooterField('legalLine', e.target.value)} placeholder="© {year} {store}. All rights reserved." />
+              <Input label="Legal line (KA)" value={footer.legalLineKa || ''} onChange={e => setFooterField('legalLineKa', e.target.value)} />
+            </div>
+            <p className="text-xs text-gray-400"><code>{'{year}'}</code> and <code>{'{store}'}</code> are filled in automatically.</p>
+            <div className="space-y-2">
+              {footer.bottomLinks.map(link => (
+                <div key={link.id} className="grid grid-cols-12 gap-2 items-center">
+                  <div className="col-span-4"><Input placeholder="Label (EN)" value={link.label} onChange={e => patchBottomLink(link.id, { label: e.target.value })} /></div>
+                  <div className="col-span-3"><Input placeholder="Label (KA)" value={link.labelKa || ''} onChange={e => patchBottomLink(link.id, { labelKa: e.target.value })} /></div>
+                  <div className="col-span-4"><Input placeholder="/help or https://…" value={link.href} onChange={e => patchBottomLink(link.id, { href: e.target.value })} /></div>
+                  <button type="button" onClick={() => removeBottomLink(link.id)} className="col-span-1 justify-self-end p-1.5 text-gray-300 hover:text-red-500" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                </div>
+              ))}
+              <button type="button" onClick={addBottomLink} className="text-xs font-bold text-brand-green flex items-center gap-1 hover:underline">
+                <Plus className="w-3 h-3" /> Add bottom link
+              </button>
+            </div>
+          </div>
 
           {saveBar('footer', 'Save footer')}
         </Section>

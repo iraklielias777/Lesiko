@@ -202,7 +202,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
 
       {/* Skin Types / Concerns */}
       <FilterSection 
-        title="Skin Concerns / Types" 
+        title={t('filters.skinConcerns')} 
         isExpanded={expandedSections.has('skinTypes')} 
         onToggle={() => toggleSection('skinTypes')}
       >
@@ -283,7 +283,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
            onChange={(c) => onFilterChange({...filters, inStock: c})} 
          />
          <Checkbox 
-           label={t('admin.putOnSale')}
+           label={t('filters.onSale')}
            checked={filters.onSale || false} 
            onChange={(c) => onFilterChange({...filters, onSale: c})} 
          />

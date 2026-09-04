@@ -78,8 +78,8 @@ export const OrderConfirmationPage = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
         <SEO title={t('checkout.thankYou')} noindex />
         <div className="text-center max-w-md">
-          <h1 className="font-heading text-2xl font-bold mb-3">No order to show</h1>
-          <p className="text-gray-500 mb-6">Open this page from checkout after paying, or from your account orders.</p>
+          <h1 className="font-heading text-2xl font-bold mb-3">{t('checkout.noOrder')}</h1>
+          <p className="text-gray-500 mb-6">{t('checkout.noOrderHint')}</p>
           <Link to="/products"><Button>{t('checkout.continueShopping')}</Button></Link>
         </div>
       </div>
@@ -124,13 +124,11 @@ export const OrderConfirmationPage = () => {
                   : <Clock className="w-10 h-10 text-amber-500" />}
               </div>
               <h1 className="font-heading font-bold text-3xl text-gray-900 mb-2">
-                {polling ? 'Confirming payment…' : 'Payment still processing'}
+                {polling ? t('checkout.confirming') : t('checkout.stillProcessing')}
               </h1>
               <p className="text-gray-600 mb-6">
-                Order <span className="font-mono font-bold">#{order?.orderNumber || '…'}</span>
-                {polling
-                  ? ' — waiting for the bank to confirm.'
-                  : ' — refresh this page in a moment, or check your email.'}
+                {t('checkout.order')} <span className="font-mono font-bold">#{order?.orderNumber || '…'}</span>
+                {' — '}{polling ? t('checkout.waitingBank') : t('checkout.refreshHint')}
               </p>
             </>
           )}
@@ -140,10 +138,9 @@ export const OrderConfirmationPage = () => {
               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
                 <XCircle className="w-10 h-10 text-red-500" />
               </div>
-              <h1 className="font-heading font-bold text-3xl text-gray-900 mb-2">Payment failed</h1>
+              <h1 className="font-heading font-bold text-3xl text-gray-900 mb-2">{t('checkout.paymentFailed')}</h1>
               <p className="text-gray-600 mb-6">
-                Order <span className="font-mono font-bold">#{order?.orderNumber}</span> was not charged.
-                You can return to checkout and try another card.
+                {t('checkout.notCharged', { number: `#${order?.orderNumber ?? ''}` })}
               </p>
             </>
           )}
@@ -158,7 +155,7 @@ export const OrderConfirmationPage = () => {
             </Link>
             {status === 'failed' ? (
               <Link to="/checkout">
-                <Button rightIcon={<ArrowRight className="w-4 h-4" />}>Try again</Button>
+                <Button rightIcon={<ArrowRight className="w-4 h-4" />}>{t('checkout.tryAgain')}</Button>
               </Link>
             ) : isAuthenticated ? (
               <Link to="/account/orders">

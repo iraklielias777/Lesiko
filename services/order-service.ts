@@ -84,55 +84,46 @@ export const OrderService = {
         return data ? mapOrder(data) : null;
     },
 
+    /**
+     * One transaction, server-side. The order row and its lines used to be two
+     * separate inserts from the browser, which left an order with no lines
+     * whenever the second one did not happen — two of those reached
+     * production. create_pending_order() inserts both or neither, applies the
+     * abuse throttle, and hands back the id and the guest token the
+     * confirmation page polls with. See migration 0019.
+     */
     createOrder: async (order: Order): Promise<{ orderId: string; publicToken: string }> => {
         if (!supabase) throw new Error('Supabase not initialized');
 
-        // Id + public_token are generated client-side: guest checkout uses the
-        // anon key, which can insert but cannot SELECT the row back (read policy
-        // matches signed-in email), so RETURNING would come back empty.
-        const orderId = crypto.randomUUID();
-        const publicToken = crypto.randomUUID();
-
-        const { error: orderError } = await supabase
-            .from('orders')
-            .insert({
-                id: orderId,
-                order_number: order.orderNumber,
-                customer_email: order.shippingAddress.email,
-                customer_name: order.customerName,
-                shipping_address: order.shippingAddress,
-                // RLS only allows pending inserts; payment is set by the edge callback.
-                payment_status: 'pending',
-                status: 'Processing',
+        const { data, error } = await supabase.rpc('create_pending_order', {
+            p_order: {
+                orderNumber: order.orderNumber,
+                customerEmail: order.shippingAddress.email,
+                customerName: order.customerName,
+                shippingAddress: order.shippingAddress,
                 subtotal: order.subtotal,
                 shipping: order.shipping,
                 tax: order.tax,
                 total: order.total,
-                public_token: publicToken,
-                // Flitt receives this as order_id; keep it identical to order_number.
-                flitt_order_id: order.flittOrderId || order.orderNumber,
-            });
+            },
+            p_items: order.items.map(item => ({
+                productId: item.product.id,
+                productName: item.product.name,
+                variantName: item.selectedVariant?.name,
+                quantity: item.quantity,
+                price: item.selectedVariant?.price || item.product.price,
+            })),
+        });
 
-        if (orderError) throw orderError;
+        // A RAISE inside the function (throttle, empty bag, bad email) arrives
+        // as the error message verbatim, and it is written to be shown.
+        if (error) throw new Error(error.message || 'Could not create the order');
 
-        const itemsToInsert = order.items.map(item => ({
-            order_id: orderId,
-            product_id: item.product.id,
-            product_name: item.product.name,
-            quantity: item.quantity,
-            price: item.selectedVariant?.price || item.product.price,
-            variant_name: item.selectedVariant?.name
-        }));
-
-        if (itemsToInsert.length) {
-            const { error: itemsError } = await supabase
-                .from('order_items')
-                .insert(itemsToInsert);
-
-            if (itemsError) throw itemsError;
+        const row = Array.isArray(data) ? data[0] : data;
+        if (!row?.order_id || !row?.public_token) {
+            throw new Error('Could not create the order');
         }
-
-        return { orderId, publicToken };
+        return { orderId: row.order_id, publicToken: row.public_token };
     },
 
     updateStatus: async (orderId: string, status: Order['status']): Promise<void> => {

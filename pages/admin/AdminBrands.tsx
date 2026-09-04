@@ -52,17 +52,25 @@ export const AdminBrands = () => {
 
       setIsSaving(true);
       try {
+          const slug = slugifyLabel(formData.slug?.trim() || formData.name);
+          if (!slug) {
+              addToast('This brand needs a URL slug', 'error');
+              return;
+          }
+          if (brands.some(b => b.slug === slug && b.id !== editingId)) {
+              addToast('Another brand already uses that URL slug', 'error');
+              return;
+          }
+
           if (editingId) {
               const existing = brands.find(b => b.id === editingId);
               if (!existing) return;
-              await updateBrand({ ...existing, ...formData, name: formData.name } as Brand);
+              if (existing.slug !== slug && !window.confirm(
+                  `Move this brand from /brand/${existing.slug} to /brand/${slug}? Any link to the old address will stop working.`
+              )) return;
+              await updateBrand({ ...existing, ...formData, name: formData.name, slug } as Brand);
               addToast('Brand updated');
           } else {
-              const slug = slugifyLabel(formData.name);
-              if (brands.some(b => b.slug === slug)) {
-                  addToast('A brand with that name already exists', 'error');
-                  return;
-              }
               await addBrand({ ...formData, id: crypto.randomUUID(), name: formData.name, slug } as Brand);
               addToast(t('admin.brandAdded'));
           }
@@ -78,7 +86,7 @@ export const AdminBrands = () => {
 
   const openModal = (brand?: Brand) => {
       setEditingId(brand?.id ?? null);
-      setFormData(brand ? { ...brand } : { name: '', description: '', image: '' });
+      setFormData(brand ? { ...brand } : { name: '', slug: '', description: '', image: '' });
       setReplacedImages([]);
       setRemoteUrl('');
       setUrlInputVisible(false);
@@ -305,10 +313,36 @@ export const AdminBrands = () => {
                         <Input 
                             label={t('admin.brandName') as string} 
                             value={formData.name} 
-                            onChange={(e) => setFormData({...formData, name: e.target.value})} 
+                            onChange={(e) => setFormData(prev => ({
+                                ...prev,
+                                name: e.target.value,
+                                // A new brand's slug follows its name until the admin edits it;
+                                // an existing brand's address never moves by itself.
+                                slug: editingId || (prev.slug && prev.slug !== slugifyLabel(prev.name || ''))
+                                    ? prev.slug
+                                    : slugifyLabel(e.target.value),
+                            }))} 
                             placeholder="e.g. LesiKo Lab"
                             required
                         />
+
+                        <div>
+                            <Input
+                                label="URL slug"
+                                value={formData.slug || ''}
+                                onChange={e => setFormData({ ...formData, slug: slugifyLabel(e.target.value) })}
+                                leftIcon={<span className="text-xs text-gray-400">/brand/</span>}
+                                className="pl-[64px]"
+                            />
+                            {editingId && (() => {
+                                const existing = brands.find(b => b.id === editingId);
+                                return existing && existing.slug !== (formData.slug || '') ? (
+                                    <p className="mt-2 text-xs text-amber-600">
+                                        Was <code>/brand/{existing.slug}</code>. Existing links to the old address will stop working.
+                                    </p>
+                                ) : null;
+                            })()}
+                        </div>
                         
                         <div>
                             <label className="block text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">{t('admin.brandDescLabel')}</label>

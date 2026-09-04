@@ -52,7 +52,7 @@ export const AccountOrderDetailPage = () => {
           <ArrowLeft className="w-4 h-4" /> {t('account.orderHistory')}
         </Link>
 
-        {loading && <p className="text-gray-500">Loading…</p>}
+        {loading && <p className="text-gray-500">{t('common.loading')}</p>}
         {notFound && !loading && (
           <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
             <p className="mb-4">{t('account.orderNotFound')}</p>

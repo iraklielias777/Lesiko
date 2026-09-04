@@ -3,6 +3,11 @@ export const resources = {
   en: {
     translation: {
       common: {
+        free: "Free",
+        menu: "Menu",
+        readMore: "Read more",
+        readLess: "Read less",
+        noBrands: "No brands to show yet.",
         shopAll: "Shop All",
         sale: "Sale",
         new: "New",
@@ -23,7 +28,7 @@ export const resources = {
         subtotal: "Subtotal",
         shipping: "Shipping",
         tax: "Tax",
-        freeShipping: "Free shipping on orders over ${{amount}}",
+        freeShipping: "Free shipping on orders over {{amount}}",
         items: "items",
         viewAll: "View All",
         loading: "Loading...",
@@ -112,7 +117,7 @@ export const resources = {
         ingredients: "Ingredients",
         reviews: "Reviews",
         related: "You Might Also Like",
-        freeShippingBadge: "Free shipping over ${{amount}}",
+        freeShippingBadge: "Free shipping over {{amount}}",
         crueltyFree: "Cruelty-Free",
         returns: "30-Day Returns",
         qty: "Qty",
@@ -123,6 +128,8 @@ export const resources = {
         quickView: "Quick View"
       },
       filters: {
+        skinConcerns: "Skin concerns / types",
+        onSale: "On sale",
         sortBy: "Sort by",
         relevance: "Relevance",
         priceLowHigh: "Price: Low to High",
@@ -144,6 +151,20 @@ export const resources = {
         allBrands: "All Brands"
       },
       checkout: {
+        order: "Order",
+        noOrder: "No order to show",
+        noOrderHint: "Open this page from checkout after paying, or from your account orders.",
+        confirming: "Confirming payment…",
+        stillProcessing: "Payment still processing",
+        waitingBank: "waiting for the bank to confirm.",
+        refreshHint: "refresh this page in a moment, or check your email.",
+        paymentFailed: "Payment failed",
+        notCharged: "Order {{number}} was not charged. You can go back and try another card.",
+        tryAgain: "Try again",
+        alreadyPaid: "Already paid? Check status",
+        preparing: "Preparing secure payment…",
+        updatingPrices: "Updating prices…",
+        retry: "Retry",
         shipping: "Shipping",
         payment: "Payment",
         contact: "Contact & Shipping",
@@ -260,6 +281,9 @@ export const resources = {
         popular: "Popular Categories:"
       },
       cart: {
+        awayFromFree: "{{amount}} away from free shipping",
+        freeUnlocked: "Free shipping unlocked",
+        taxesAtCheckout: "Shipping and taxes are calculated at checkout.",
         title: "Your Bag",
         emptyTitle: "Your Bag is Empty",
         emptyDesc: "Your beauty ritual is waiting to be created. Explore our premium collection to find your perfect match.",
@@ -269,6 +293,10 @@ export const resources = {
         proceedToCheckout: "Proceed to Checkout"
       },
       help: {
+        noFaqs: "No FAQs published yet.",
+        trackInfo: "Track & info",
+        policyRequest: "Policy & request",
+        manageProfile: "Manage profile",
         title: "Help Center",
         subtitle: "How can we assist you today?",
         faqTitle: "Frequently Asked Questions",
@@ -300,6 +328,20 @@ export const resources = {
         a5: "Yes, all brands we curate are cruelty-free and never tested on animals.",
         q6: "How can I track my order?",
         a6: "You can track your order from the 'My Account' section under 'Order History'."
+      },
+      search: {
+        popularTags: "Popular tags",
+        noMatches: "No matches found",
+        tryHint: "Try a product name, a category or a brand.",
+        suggestions: "Suggestions",
+        inCategories: "in Categories",
+        brand: "Brand",
+        products: "Products",
+        sale: "Sale",
+        videoAvailable: "Video available",
+        recent: "Recent searches",
+        clear: "Clear",
+        viewAll: "View all results for \"{{query}}\"",
       },
       admin: {
         dashboard: "Dashboard",
@@ -412,6 +454,11 @@ export const resources = {
   ka: {
     translation: {
       common: {
+        free: "უფასო",
+        menu: "მენიუ",
+        readMore: "სრულად",
+        readLess: "ნაკლები",
+        noBrands: "ბრენდები ჯერ არ არის.",
         shopAll: "ყველა",
         sale: "ფასდაკლება",
         new: "ახალი",
@@ -432,7 +479,7 @@ export const resources = {
         subtotal: "ქვე-ჯამი",
         shipping: "მიწოდება",
         tax: "გადასახადი",
-        freeShipping: "უფასო მიწოდება {{amount}}₾-ის ზემოთ",
+        freeShipping: "უფასო მიწოდება {{amount}}-ის ზემოთ",
         items: "ნივთი",
         viewAll: "ყველას ნახვა",
         loading: "იტვირთება...",
@@ -521,7 +568,7 @@ export const resources = {
         ingredients: "შემადგენლობა",
         reviews: "შეფასებები",
         related: "მსგავსი პროდუქტები",
-        freeShippingBadge: "უფასო მიწოდება {{amount}}₾-ის ზემოთ",
+        freeShippingBadge: "უფასო მიწოდება {{amount}}-ის ზემოთ",
         crueltyFree: "Cruelty-Free",
         returns: "30-დღიანი დაბრუნება",
         qty: "რაოდ.",
@@ -532,6 +579,8 @@ export const resources = {
         quickView: "სწრაფი ნახვა"
       },
       filters: {
+        skinConcerns: "კანის ტიპი",
+        onSale: "ფასდაკლებით",
         sortBy: "სორტირება",
         relevance: "რელევანტური",
         priceLowHigh: "ფასი: დაბლიდან მაღლა",
@@ -553,6 +602,20 @@ export const resources = {
         allBrands: "ყველა ბრენდი"
       },
       checkout: {
+        order: "შეკვეთა",
+        noOrder: "შეკვეთა ვერ მოიძებნა",
+        noOrderHint: "ეს გვერდი იხსნება გადახდის შემდეგ ან თქვენი ანგარიშის შეკვეთებიდან.",
+        confirming: "გადახდა მოწმდება…",
+        stillProcessing: "გადახდა ჯერ მუშავდება",
+        waitingBank: "ველოდებით ბანკის დადასტურებას.",
+        refreshHint: "ცოტა ხანში განაახლეთ გვერდი ან შეამოწმეთ ელფოსტა.",
+        paymentFailed: "გადახდა ვერ შესრულდა",
+        notCharged: "შეკვეთა {{number}} არ დაირიცხა. შეგიძლიათ სხვა ბარათით სცადოთ.",
+        tryAgain: "ხელახლა ცდა",
+        alreadyPaid: "უკვე გადაიხადეთ? სტატუსის ნახვა",
+        preparing: "უსაფრთხო გადახდა მზადდება…",
+        updatingPrices: "ფასები ახლდება…",
+        retry: "ხელახლა",
         shipping: "მიწოდება",
         payment: "გადახდა",
         contact: "კონტაქტი & მისამართი",
@@ -669,6 +732,9 @@ export const resources = {
         popular: "პოპულარული კატეგორიები:"
       },
       cart: {
+        awayFromFree: "უფასო მიწოდებამდე დარჩა {{amount}}",
+        freeUnlocked: "უფასო მიწოდება ჩართულია",
+        taxesAtCheckout: "მიწოდება და გადასახადები ითვლება გადახდისას.",
         title: "კალათა",
         emptyTitle: "კალათა ცარიელია",
         emptyDesc: "თქვენი სილამაზის რუტინა ჯერ არ შეგიქმნიათ.",
@@ -678,6 +744,10 @@ export const resources = {
         proceedToCheckout: "ყიდვა"
       },
       help: {
+        noFaqs: "კითხვები ჯერ არ არის.",
+        trackInfo: "თვალყური და ინფო",
+        policyRequest: "პოლიტიკა და მოთხოვნა",
+        manageProfile: "პროფილის მართვა",
         title: "დახმარება",
         subtitle: "რით შეგვიძლია დაგეხმაროთ?",
         faqTitle: "ხშირად დასმული კითხვები",
@@ -709,6 +779,20 @@ export const resources = {
         a5: "დიახ, ჩვენი ყველა ბრენდი არის cruelty-free და არ იტესტება ცხოველებზე.",
         q6: "როგორ ვადევნო თვალი შეკვეთას?",
         a6: "შეკვეთის სტატუსის ნახვა შეგიძლიათ პირად კაბინეტში, 'შეკვეთების ისტორიის' განყოფილებაში."
+      },
+      search: {
+        popularTags: "პოპულარული",
+        noMatches: "ვერაფერი მოიძებნა",
+        tryHint: "სცადეთ პროდუქტის სახელი, კატეგორია ან ბრენდი.",
+        suggestions: "შემოთავაზებები",
+        inCategories: "კატეგორიებში",
+        brand: "ბრენდი",
+        products: "პროდუქტები",
+        sale: "აქცია",
+        videoAvailable: "ვიდეო",
+        recent: "ბოლო ძიებები",
+        clear: "გასუფთავება",
+        viewAll: "ყველა შედეგი: „{{query}}“",
       },
       admin: {
         dashboard: "დაფა",

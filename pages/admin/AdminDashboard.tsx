@@ -1,10 +1,13 @@
 
-import React, { useEffect, useMemo } from 'react';
-import { DollarSign, ShoppingBag, Users, TrendingUp } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DollarSign, ShoppingBag, Users, TrendingUp, AlertTriangle, BellRing, Check, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAdminStore } from '../../store/admin-store';
 import { useFormatPrice } from '../../lib/format';
 import { imageUrl } from '../../lib/image-url';
+import { OpsService, OpsAlert } from '../../services/ops-service';
+import { useAuthStore } from '../../store/auth-store';
+import { useToastStore } from '../../store/toast-store';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -22,10 +25,28 @@ export const AdminDashboard = () => {
   const { t } = useTranslation();
   const { fetchData, orders, products, customers } = useAdminStore();
   const formatPrice = useFormatPrice();
+  const currentUser = useAuthStore(s => s.user);
+  const addToast = useToastStore(s => s.addToast);
+
+  // Written by the payments function: paid orders (until email exists, this is
+  // how you learn a sale happened), failed payments, and anything that needs a
+  // hand — a bad callback signature, a stock decrement that did not apply.
+  const [alerts, setAlerts] = useState<OpsAlert[]>([]);
+  const loadAlerts = () => { OpsService.getOpenAlerts().then(setAlerts).catch(() => {}); };
 
   useEffect(() => {
     fetchData();
+    loadAlerts();
   }, []);
+
+  const acknowledge = async (alert: OpsAlert) => {
+    try {
+      await OpsService.acknowledge(alert.id, currentUser?.id || '');
+      setAlerts(prev => prev.filter(a => a.id !== alert.id));
+    } catch (e: any) {
+      addToast(e?.message || 'Could not acknowledge', 'error');
+    }
+  };
 
   const totalRevenue = orders.reduce((sum, order) => sum + order.total, 0);
   const totalOrders = orders.length;
@@ -92,6 +113,50 @@ export const AdminDashboard = () => {
         <h1 className="font-heading text-3xl font-bold text-gray-900">{t('admin.dashboard')}</h1>
         <p className="text-gray-500">{t('admin.dashboardDesc')}</p>
       </div>
+
+      {alerts.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="font-heading font-bold text-lg flex items-center gap-2">
+              <BellRing className="w-5 h-5 text-brand-green" /> Needs your attention
+              <span className="text-sm font-normal text-gray-500">({alerts.length})</span>
+            </h3>
+            <button type="button" onClick={loadAlerts} className="text-xs font-bold text-gray-400 hover:text-brand-dark">Refresh</button>
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {alerts.map(alert => {
+              const tone = alert.severity === 'critical'
+                ? { bar: 'bg-red-500', icon: <AlertTriangle className="w-4 h-4 text-red-500" /> }
+                : alert.severity === 'warning'
+                  ? { bar: 'bg-amber-400', icon: <AlertTriangle className="w-4 h-4 text-amber-500" /> }
+                  : { bar: 'bg-brand-green', icon: <Info className="w-4 h-4 text-brand-green" /> };
+              return (
+                <li key={alert.id} className="flex items-stretch">
+                  <span className={`w-1 shrink-0 ${tone.bar}`} />
+                  <div className="flex-1 px-5 py-3 flex items-start gap-3">
+                    <span className="mt-0.5">{tone.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">{alert.message}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {alert.kind.replace(/_/g, ' ')} · {new Date(alert.createdAt).toLocaleString()}
+                        {typeof alert.context?.orderNumber === 'string' ? ` · #${alert.context.orderNumber}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => acknowledge(alert)}
+                      className="shrink-0 text-xs font-bold text-gray-500 hover:text-brand-dark flex items-center gap-1 px-2 py-1 rounded hover:bg-gray-50"
+                      title="Mark as handled"
+                    >
+                      <Check className="w-3.5 h-3.5" /> Done
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard

@@ -99,13 +99,15 @@ export const BrandService = {
   },
 
   updateBrand: async (brand: Brand): Promise<void> => {
-    // `slug` is deliberately not updated: products reference the brand by id,
-    // but storefront links are built from the slug, so changing it would break
-    // any URL already in the wild.
+    // Products reference the brand by id, so a slug change cannot detach them;
+    // it only moves the landing page. The admin warns before doing that, and
+    // it is how the three brands still sitting on demo-seed addresses get
+    // their real ones.
     const { error } = await supabase
       .from('brands')
       .update({
         name: brand.name,
+        ...(brand.slug?.trim() ? { slug: brand.slug.trim() } : {}),
         image: brand.image,
         description: brand.description,
         ...seoColumns(brand),

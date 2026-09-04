@@ -11,6 +11,7 @@ import { useSettingsStore } from '../../store/settings-store';
 import { useCategories } from '../../lib/use-categories';
 import { categoryLabel } from '../../lib/taxonomy';
 import { splitWordmark } from '../../lib/wordmark';
+import { useFormatPrice } from '../../lib/format';
 
 export const Header = () => {
   const { t, i18n } = useTranslation();
@@ -24,6 +25,7 @@ export const Header = () => {
   const freeShippingThreshold = useSettingsStore((s) => s.settings.freeShippingThreshold);
   const storeName = useSettingsStore((s) => s.settings.storeName);
   const [wordmarkHead, wordmarkTail] = splitWordmark(storeName);
+  const fmt = useFormatPrice();
   const navigate = useNavigate();
   const cartCount = getTotalItems();
 
@@ -59,7 +61,9 @@ export const Header = () => {
   const closeMobile = () => setIsMobileMenuOpen(false);
   const accountLink = user?.role === 'admin' ? '/admin' : '/account';
   const accountLabel = user?.role === 'admin' ? t('common.admin') : t('common.myAccount');
-  const displayCategories = categories.slice(0, 5);
+  // Every category gets a slot: five fit at lg, the rest join at xl so a
+  // category as large as Hair is never simply missing from the desktop nav.
+  const displayCategories = categories;
   const currentLang = i18n.resolvedLanguage || i18n.language;
 
   return (
@@ -68,10 +72,10 @@ export const Header = () => {
       <div className="bg-brand-dark text-white text-[11px] uppercase tracking-widest py-2.5 px-4 text-center sm:text-left relative z-50">
         <div className="container mx-auto flex justify-between items-center">
           <p className="font-medium hidden sm:block opacity-90">
-            {t('common.freeShipping', { amount: freeShippingThreshold })}
+            {t('common.freeShipping', { amount: fmt(freeShippingThreshold) })}
           </p>
           <p className="font-medium sm:hidden opacity-90">
-            {t('product.freeShippingBadge', { amount: freeShippingThreshold })}
+            {t('product.freeShippingBadge', { amount: fmt(freeShippingThreshold) })}
           </p>
           <div className="flex items-center gap-6">
             <button type="button" onClick={toggleLanguage} className="flex items-center gap-1 hover:text-brand-green transition-colors font-bold cursor-pointer">
@@ -101,8 +105,8 @@ export const Header = () => {
                   {t('common.shopAll')}
                   <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-brand-green transition-all duration-300 group-hover:w-full" />
                 </Link>
-                {displayCategories.map((cat) => (
-                  <Link key={cat.slug} to={`/category/${cat.slug}`} className="text-[13px] uppercase tracking-wider font-semibold text-gray-800 hover:text-brand-green transition-colors relative group py-2">
+                {displayCategories.map((cat, index) => (
+                  <Link key={cat.slug} to={`/category/${cat.slug}`} className={`${index >= 5 ? 'hidden xl:inline-flex' : ''} text-[13px] uppercase tracking-wider font-semibold text-gray-800 hover:text-brand-green transition-colors relative group py-2`}>
                     {categoryLabel(cat, i18n.language)}
                     <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-brand-green transition-all duration-300 group-hover:w-full" />
                   </Link>
@@ -136,7 +140,7 @@ export const Header = () => {
         <div className={`absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-500 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={closeMobile} />
         <div className="absolute top-0 left-0 w-[85%] max-w-sm h-full bg-white shadow-2xl flex flex-col transition-transform duration-500" style={{ transform: isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
           <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-            <span className="font-heading font-bold text-xl text-brand-dark">Menu</span>
+            <span className="font-heading font-bold text-xl text-brand-dark">{t('common.menu')}</span>
             <button type="button" onClick={closeMobile} className="p-2 bg-white border border-gray-200 rounded-full text-gray-500 transition-colors"><X className="w-5 h-5" /></button>
           </div>
           <div className="p-6 overflow-y-auto flex-1">

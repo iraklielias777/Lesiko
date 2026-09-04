@@ -2,6 +2,7 @@
 import React from 'react';
 import { CartItem } from '../../types';
 import { useFormatPrice } from '../../lib/format';
+import { useTranslation } from 'react-i18next';
 import { ProductThumb } from '../product/ProductThumb';
 
 interface OrderSummaryProps {
@@ -14,9 +15,10 @@ interface OrderSummaryProps {
 
 export const OrderSummary: React.FC<OrderSummaryProps> = ({ items, subtotal, shipping, tax, total }) => {
   const fmt = useFormatPrice();
+  const { t } = useTranslation();
   return (
     <div className="bg-gray-50 rounded-lg p-6 sticky top-24">
-      <h3 className="font-heading font-bold text-lg mb-4">Order Summary</h3>
+      <h3 className="font-heading font-bold text-lg mb-4">{t('checkout.orderSummary')}</h3>
       
       <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2">
         {items.map((item) => {
@@ -52,19 +54,19 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({ items, subtotal, shi
 
       <div className="space-y-3 border-t border-gray-200 pt-4 text-sm">
         <div className="flex justify-between text-gray-600">
-          <span>Subtotal</span>
+          <span>{t('common.subtotal')}</span>
           <span>{fmt(subtotal)}</span>
         </div>
         <div className="flex justify-between text-gray-600">
-          <span>Shipping</span>
-          <span>{shipping === 0 ? 'Free' : fmt(shipping)}</span>
+          <span>{t('common.shipping')}</span>
+          <span>{shipping === 0 ? t('common.free') : fmt(shipping)}</span>
         </div>
         <div className="flex justify-between text-gray-600">
-          <span>Estimated Tax</span>
+          <span>{t('checkout.estimatedTax')}</span>
           <span>{fmt(tax)}</span>
         </div>
         <div className="flex justify-between font-bold text-lg text-gray-900 border-t border-gray-200 pt-3">
-          <span>Total</span>
+          <span>{t('common.total')}</span>
           <span>{fmt(total)}</span>
         </div>
       </div>

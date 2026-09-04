@@ -26,6 +26,13 @@ const MAX_FETCH_BYTES = 25 * 1024 * 1024;
 // compression or is not really a photo, and would quietly eat storage.
 const MAX_BYTES = 2 * 1024 * 1024;
 const ONE_YEAR_SECONDS = 31536000;
+
+/**
+ * Every size the storefront can ask for. Mirrors IMAGE_WIDTHS in
+ * lib/image-url.ts — the two must agree or the warm-up hits URLs nobody uses.
+ */
+const WARM_WIDTHS = [160, 320, 640, 1200];
+const WARM_QUALITY = 75;
 const ALLOWED_MIME = [
   'image/png',
   'image/jpeg',
@@ -111,7 +118,26 @@ async function fetchRemote(url: string): Promise<RemoteImage | Response> {
   };
 }
 
-async function store(blob: Blob, folder: string, originalName?: string) {
+/**
+ * A transform that has never been requested costs ~2.5 s at the origin before
+ * the CDN can serve it; the first shopper to open a product pays that for
+ * every image on the page. Requesting the ladder once here, right after the
+ * upload, means the CDN is already warm when the product is first viewed.
+ * Fire-and-forget: the upload response does not wait for it.
+ */
+const warmTransforms = (publicUrl: string, fit: string) => {
+  const resize = fit === 'cover' ? 'cover' : 'contain';
+  const base = publicUrl.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/');
+  const jobs = WARM_WIDTHS.map((w) =>
+    fetch(`${base}?width=${w}&height=${w}&resize=${resize}&quality=${WARM_QUALITY}`, {
+      headers: { Accept: 'image/avif,image/webp,*/*' },
+    }).then((r) => r.body?.cancel()).catch(() => undefined),
+  );
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil?: (p: Promise<unknown>) => void } }).EdgeRuntime;
+  if (runtime?.waitUntil) runtime.waitUntil(Promise.all(jobs));
+};
+
+async function store(blob: Blob, folder: string, originalName?: string, fit = 'contain') {
   // Remote hosts often return `image/jpeg; charset=binary`.
   const mime = blob.type.split(';')[0].trim().toLowerCase();
 
@@ -148,6 +174,7 @@ async function store(blob: Blob, folder: string, originalName?: string) {
   if (error) return json({ error: error.message }, 500);
 
   const { data } = admin.storage.from(BUCKET).getPublicUrl(path);
+  if (folder === 'products') warmTransforms(data.publicUrl, fit);
   return json({ path, publicUrl: data.publicUrl });
 }
 
@@ -165,7 +192,8 @@ Deno.serve(async (req) => {
       const form = await req.formData();
       const file = form.get('file');
       if (!(file instanceof File)) return json({ error: 'No file provided' }, 400);
-      return await store(file, safeFolder(form.get('folder')), file.name);
+      const fit = form.get('fit') === 'cover' ? 'cover' : 'contain';
+      return await store(file, safeFolder(form.get('folder')), file.name, fit);
     }
 
     const body = await req.json().catch(() => null);
@@ -208,6 +236,14 @@ Deno.serve(async (req) => {
       if (remote instanceof Response) return remote;
 
       return await store(remote.blob, safeFolder(folder), remote.name);
+    }
+
+    // Warm the transform ladder for an object that already exists — used by
+    // scripts/warm-images.mjs after the URL scheme changed under the cache.
+    if (action === 'warm') {
+      if (!url) return json({ error: 'No url provided' }, 400);
+      warmTransforms(url, typeof body.fit === 'string' ? body.fit : 'contain');
+      return json({ warming: url });
     }
 
     if (action === 'delete') {

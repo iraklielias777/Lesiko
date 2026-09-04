@@ -49,6 +49,9 @@ const uploadBlob = async (blob: Blob, name: string, folder: string): Promise<Upl
   const form = new FormData();
   form.append('file', processed.blob, processed.name);
   form.append('folder', folder);
+  // Lets the function pre-warm the exact transforms the storefront will ask
+  // for — cover for a lifestyle shot, contain for a packshot.
+  form.append('fit', processed.fit === 'cover' ? 'cover' : 'contain');
 
   const { publicUrl } = await invoke<MediaResponse>(form);
   return {

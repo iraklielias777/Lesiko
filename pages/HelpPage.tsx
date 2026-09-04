@@ -97,7 +97,7 @@ export const HelpPage = () => {
                 <p className="text-gray-400">{t('common.loading')}</p>
               )}
               {content !== null && faqs.length === 0 && (
-                <p className="text-gray-400 italic">No FAQs published yet.</p>
+                <p className="text-gray-400 italic">{t('help.noFaqs')}</p>
               )}
               {faqs.map((faq, index) => {
                 const isOpen = activeAccordion === index;
@@ -189,7 +189,7 @@ export const HelpPage = () => {
                 </div>
                 <div>
                     <h4 className="font-bold text-gray-900">{t('help.shipping')}</h4>
-                    <p className="text-sm text-gray-500 mt-1">Track & Info</p>
+                    <p className="text-sm text-gray-500 mt-1">{t('help.trackInfo')}</p>
                 </div>
             </div>
             <div className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-shadow">
@@ -198,7 +198,7 @@ export const HelpPage = () => {
                 </div>
                 <div>
                     <h4 className="font-bold text-gray-900">{t('help.returns')}</h4>
-                    <p className="text-sm text-gray-500 mt-1">Policy & Request</p>
+                    <p className="text-sm text-gray-500 mt-1">{t('help.policyRequest')}</p>
                 </div>
             </div>
             <div className="flex items-center gap-4 p-6 bg-white border border-gray-100 rounded-xl hover:shadow-lg transition-shadow">
@@ -207,7 +207,7 @@ export const HelpPage = () => {
                 </div>
                 <div>
                     <h4 className="font-bold text-gray-900">{t('help.account')}</h4>
-                    <p className="text-sm text-gray-500 mt-1">Manage Profile</p>
+                    <p className="text-sm text-gray-500 mt-1">{t('help.manageProfile')}</p>
                 </div>
             </div>
         </div>
