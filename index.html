@@ -13,6 +13,20 @@
     <link rel="manifest" href="/site.webmanifest" />
     <meta name="theme-color" content="#AED136" />
 
+    <!-- Boot splash. On screen from the first paint, before any script runs;
+         the app lifts it once the page is complete (lib/splash.ts), and
+         boot.js removes it after a hard cap no matter what. -->
+    <style>
+      #splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #ffffff; transition: opacity .35s ease, visibility .35s; }
+      #splash.is-done { opacity: 0; visibility: hidden; pointer-events: none; }
+      #splash .mark { font-family: Montserrat, Inter, system-ui, -apple-system, sans-serif; font-weight: 700; font-size: 30px; letter-spacing: -0.03em; color: #1A1A1A; line-height: 1; }
+      #splash .mark b { color: #AED136; font-weight: 700; }
+      #splash .bar { width: 120px; height: 2px; border-radius: 2px; background: #EEF0E8; overflow: hidden; }
+      #splash .bar i { display: block; width: 40%; height: 100%; border-radius: 2px; background: #AED136; animation: splash-slide 1.1s ease-in-out infinite; }
+      @keyframes splash-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+      @media (prefers-reduced-motion: reduce) { #splash .bar i { animation: none; width: 100%; } #splash { transition: none; } }
+    </style>
+
     <!-- Static fallbacks for scrapers that never reach the React SEO component.
          The seo edge function / Admin SEO page overwrite these for real shares. -->
     <meta property="og:type" content="website" />
@@ -47,6 +61,10 @@
     
 </head>
   <body class="font-sans text-brand-dark antialiased bg-white">
+    <div id="splash" aria-hidden="true">
+      <div class="mark">Lesi<b>Ko</b>.</div>
+      <div class="bar"><i></i></div>
+    </div>
     <div id="root"></div>
     <!-- Note: In local dev, this is transpiled. In production build, the bundler 
          should convert this to index.js or handle the tsx transpilation. -->

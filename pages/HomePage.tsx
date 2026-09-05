@@ -14,6 +14,7 @@ import { SEO } from '../components/seo/SEO';
 import { categoryLabel, subLabel } from '../lib/taxonomy';
 import { loadCategories } from '../lib/use-categories';
 import { imageSrcSet, imageUrl } from '../lib/image-url';
+import { HERO_SIZES, heroSrc, heroSrcSet, useHeroReady } from '../lib/hero';
 import { useSettingsStore } from '../store/settings-store';
 import { usePageSeo, useSiteUrl } from '../lib/use-seo';
 import { CARD_SIZES } from '../lib/product-image';
@@ -22,12 +23,12 @@ import { CARD_SIZES } from '../lib/product-image';
  * The hero renders twice — a full-bleed backdrop on mobile, a right-hand panel
  * on desktop — because the two layouts are genuinely different. `display: none`
  * does not stop an image loading, so when the two elements asked for different
- * widths every visitor downloaded both. Identical src/srcSet/sizes makes the
- * browser resolve them to one resource and fetch it once; only the wrapper
- * differs. The hidden copy is aria-hidden so the alt text is not read twice.
+ * widths every visitor downloaded both. Identical src/srcSet/sizes (lib/hero.ts)
+ * makes the browser resolve them to one resource and fetch it once; only the
+ * wrapper differs. The hidden copy is aria-hidden so the alt text is not read
+ * twice. Nothing in the hero animates until the picture has decoded, so the
+ * copy, the buttons and the image arrive as one.
  */
-const HERO_WIDTHS = [600, 900, 1200, 1600];
-const HERO_SIZES = '(min-width: 768px) 50vw, 100vw';
 
 const SKIN_TYPE_ICONS: Record<string, any> = {
     normal: Activity,
@@ -109,6 +110,8 @@ export const HomePage = () => {
     secondaryLabel: hero ? pick(hero.secondaryLabel, hero.secondaryLabelKa) : t('home.takeQuiz')
   };
   const heroImage = hero?.image || '';
+  const heroReady = useHeroReady(hero);
+  const reveal = () => (heroReady ? 'animate-fade-in-up' : 'opacity-0');
 
   const structuredData = {
     "@context": "https://schema.org",
@@ -164,14 +167,14 @@ export const HomePage = () => {
 
       {/* Hero Section */}
       <section className="relative h-[85vh] md:h-[90vh] min-h-[450px] md:min-h-[600px] flex flex-col md:flex-row overflow-hidden">
-        <div className="absolute inset-0 md:hidden z-0">
+        <div className="absolute inset-0 md:hidden z-0 bg-brand-dark">
             {heroImage && (
               <img
-                src={imageUrl(heroImage, { width: HERO_WIDTHS[2], height: 1600, resize: 'cover' })}
-                srcSet={imageSrcSet(heroImage, HERO_WIDTHS, { height: 1600, resize: 'cover' })}
+                src={heroSrc(heroImage)}
+                srcSet={heroSrcSet(heroImage)}
                 sizes={HERO_SIZES}
                 alt={heroText.title}
-                className="w-full h-full object-cover"
+                className={`w-full h-full object-cover transition-opacity duration-500 ${heroReady ? 'opacity-100' : 'opacity-0'}`}
                 fetchPriority="high"
                 decoding="async"
               />
@@ -180,16 +183,16 @@ export const HomePage = () => {
         </div>
         <div className="w-full md:w-1/2 flex items-end md:items-center justify-center p-6 md:p-16 z-10 relative h-full">
           <div className="max-w-xl relative w-full mb-16 md:mb-0">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 md:bg-white border border-white/20 md:border-gray-100 shadow-sm text-white md:text-brand-dark text-[11px] font-bold uppercase tracking-widest mb-6 md:mb-8 backdrop-blur-md md:backdrop-blur-none animate-fade-in-up">
+            <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 md:bg-white border border-white/20 md:border-gray-100 shadow-sm text-white md:text-brand-dark text-[11px] font-bold uppercase tracking-widest mb-6 md:mb-8 backdrop-blur-md md:backdrop-blur-none ${reveal()}`}>
               <Sparkles className="w-3.5 h-3.5 text-brand-green fill-brand-green" /> {heroText.eyebrow}
             </div>
-            <h1 className="font-heading text-5xl sm:text-6xl md:text-8xl font-bold mb-4 md:mb-6 leading-[0.95] text-white md:text-brand-dark tracking-tighter animate-fade-in-up">
+            <h1 className={`font-heading text-5xl sm:text-6xl md:text-8xl font-bold mb-4 md:mb-6 leading-[0.95] text-white md:text-brand-dark tracking-tighter ${reveal()}`}>
               {heroText.title}
             </h1>
-            <p className="text-base sm:text-lg text-gray-200 md:text-gray-600 mb-8 md:mb-10 leading-relaxed max-w-md font-light tracking-wide animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+            <p className={`text-base sm:text-lg text-gray-200 md:text-gray-600 mb-8 md:mb-10 leading-relaxed max-w-md font-light tracking-wide ${reveal()}`} style={{ animationDelay: '100ms' }}>
               {heroText.subtitle}
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
+            <div className={`flex flex-col sm:flex-row gap-4 ${reveal()}`} style={{ animationDelay: '200ms' }}>
               <Link to={hero?.primaryLink || '/products'}><Button size="lg" className="w-full shadow-xl shadow-brand-green/20">{heroText.primaryLabel}</Button></Link>
               <Link to={hero?.secondaryLink || '/products'} className="w-full sm:w-auto">
                 <Button variant="outline" size="lg" className="w-full bg-white/10 md:bg-transparent border-white/40 md:border-gray-900 text-white md:text-gray-900 hover:bg-white hover:text-brand-dark backdrop-blur-sm md:backdrop-blur-none">
@@ -199,15 +202,15 @@ export const HomePage = () => {
             </div>
           </div>
         </div>
-        <div className="hidden md:block w-1/2 h-full relative overflow-hidden">
+        <div className="hidden md:block w-1/2 h-full relative overflow-hidden bg-[#FAFAF9]">
           {heroImage && (
             <img
-              src={imageUrl(heroImage, { width: HERO_WIDTHS[2], height: 1600, resize: 'cover' })}
-              srcSet={imageSrcSet(heroImage, HERO_WIDTHS, { height: 1600, resize: 'cover' })}
+              src={heroSrc(heroImage)}
+              srcSet={heroSrcSet(heroImage)}
               sizes={HERO_SIZES}
               alt=""
               aria-hidden="true"
-              className="w-full h-full object-cover animate-float"
+              className={`w-full h-full object-cover transition-opacity duration-500 ${heroReady ? 'opacity-100 animate-float' : 'opacity-0'}`}
               style={{ animationDuration: '8s' }}
               fetchPriority="high"
               decoding="async"

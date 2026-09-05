@@ -11,8 +11,17 @@ if (location.hash.indexOf('#/') === 0) {
   history.replaceState(null, '', target.indexOf('?') === -1 ? target + location.search : target);
 }
 
+// Boot splash safety net: the app lifts it when the page is ready; if the app
+// never gets there, nobody should stare at a logo for longer than this.
+function liftSplash() {
+  var splash = document.getElementById('splash');
+  if (splash) splash.classList.add('is-done');
+}
+setTimeout(liftSplash, 8000);
+
 // Global error catcher: shows errors on screen if the app fails to mount.
 window.onerror = function (msg) {
+  liftSplash();
   var root = document.getElementById('root');
   if (root && !root.innerHTML.trim()) {
     root.innerHTML =

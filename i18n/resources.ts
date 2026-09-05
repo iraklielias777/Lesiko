@@ -3,6 +3,7 @@ export const resources = {
   en: {
     translation: {
       common: {
+        freeShippingAll: "Free shipping on all orders",
         free: "Free",
         menu: "Menu",
         readMore: "Read more",
@@ -114,6 +115,7 @@ export const resources = {
         gentle: "Gentle formulas"
       },
       product: {
+        freeShippingAll: "Free shipping on all orders",
         desc: "Description",
         ingredients: "Ingredients",
         reviews: "Reviews",
@@ -478,6 +480,7 @@ export const resources = {
   ka: {
     translation: {
       common: {
+        freeShippingAll: "უფასო მიწოდება ყველა შეკვეთაზე",
         free: "უფასო",
         menu: "მენიუ",
         readMore: "სრულად",
@@ -589,6 +592,7 @@ export const resources = {
         gentle: "ნაზი ფორმულა"
       },
       product: {
+        freeShippingAll: "უფასო მიწოდება ყველა შეკვეთაზე",
         desc: "აღწერა",
         ingredients: "შემადგენლობა",
         reviews: "შეფასებები",

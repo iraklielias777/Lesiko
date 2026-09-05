@@ -19,6 +19,7 @@ import { ProductListingPage } from './pages/ProductListingPage';
 import { ProductDetailPage } from './pages/ProductDetailPage';
 import { trackPageView } from './lib/analytics';
 import { reportError } from './lib/error-reporting';
+import { dismissSplash } from './lib/splash';
 
 /**
  * Everything below is loaded on demand.
@@ -63,6 +64,20 @@ const RouteFallback = () => (
   </div>
 );
 
+/**
+ * Lifts the boot splash once a route has actually mounted. Rendered inside the
+ * Suspense boundary, so while a lazy chunk is still arriving the splash stays
+ * up instead of giving way to the spinner. The homepage is the exception: it
+ * lifts the splash itself once its hero image has decoded (lib/hero.ts).
+ */
+const SplashGate = () => {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    if (pathname !== '/') dismissSplash();
+  }, [pathname]);
+  return null;
+};
+
 // Scroll to top on route change
 const ScrollToTop = () => {
   const { pathname, search } = useLocation();
@@ -100,6 +115,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string }) {
+    dismissSplash();
     reportError(error, info.componentStack || '');
   }
 
@@ -138,6 +154,7 @@ const App = () => {
           <Toaster />
           
           <Suspense fallback={<div className="h-screen flex items-center justify-center"><div className="animate-spin h-8 w-8 border-4 border-brand-green border-t-transparent rounded-full" /></div>}>
+            <SplashGate />
             <Routes>
                 <Route path="/admin" element={<AdminLayout />}>
                     <Route index element={<AdminDashboard />} />
