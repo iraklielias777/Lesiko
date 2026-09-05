@@ -10,6 +10,8 @@ import { useSettingsStore } from '../../store/settings-store';
 import { imageSrcSet, imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
 import { defaultVariantOf, fitClass, frameColor, galleryFor, galleryIndexFor, resizeOf } from '../../lib/product-image';
+import { resolvePrice } from '../../lib/pricing';
+import { SaleBadge } from './SaleBadge';
 
 /**
  * Mux Player is a web-component bundle that only matters to a product with a
@@ -21,7 +23,7 @@ const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
 interface ProductDetailViewProps {
   product: Product;
   onImageClick?: (id: string) => void;
-  onSelectionChange?: (state: { variant: ProductVariant | null; price: number; stock: number }) => void;
+  onSelectionChange?: (state: { variant: ProductVariant | null; price: number; compareAt?: number; stock: number }) => void;
 }
 
 export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, onSelectionChange }) => {
@@ -66,8 +68,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
     applyVariantMedia(initial);
   }, [product.id]);
 
-  // Determine current price and stock based on variant selection
-  const currentPrice = selectedVariant?.price || product.price;
+  // Price and sale state for the chosen option come from the shared rule, so
+  // the page agrees with the card that brought the shopper here and with the
+  // amount the checkout will charge.
+  const priced = resolvePrice(product, selectedVariant);
+  const currentPrice = priced.price;
   const currentStock = selectedVariant ? selectedVariant.inventoryQuantity : product.inventoryQuantity;
   const isOutOfStock = currentStock === 0;
   const visibleGallery = galleryFor(product, selectedVariant);
@@ -76,8 +81,8 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
   onSelectionChangeRef.current = onSelectionChange;
 
   useEffect(() => {
-    onSelectionChangeRef.current?.({ variant: selectedVariant, price: currentPrice, stock: currentStock });
-  }, [selectedVariant, currentPrice, currentStock]);
+    onSelectionChangeRef.current?.({ variant: selectedVariant, price: currentPrice, compareAt: priced.compareAt, stock: currentStock });
+  }, [selectedVariant, currentPrice, priced.compareAt, currentStock]);
 
   const handleAddToCart = () => {
       addItem(product, quantity, selectedVariant || undefined);
@@ -153,6 +158,11 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
                {t('common.noImage')}
              </div>
           )}
+          {!isVideoActive && priced.onSale && (
+            <div className="absolute top-3 left-3 z-10 pointer-events-none">
+              <SaleBadge percent={priced.discountPercent} />
+            </div>
+          )}
         </div>
 
         {/* Thumbnails — fixed size, so a product with two images does not get
@@ -216,10 +226,16 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
           </div>
         )}
 
-        <div className="flex items-center gap-3 mb-6">
-          <span className="text-3xl font-bold text-gray-900">{fmt(currentPrice)}</span>
-          {product.compareAtPrice && !selectedVariant && (
-            <span className="text-xl text-gray-400 line-through">{fmt(product.compareAtPrice)}</span>
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <span className={`text-3xl font-bold ${priced.onSale ? 'text-red-600' : 'text-gray-900'}`}>{fmt(currentPrice)}</span>
+          {priced.compareAt !== undefined && (
+            <>
+              <span className="text-xl text-gray-400 line-through">{fmt(priced.compareAt)}</span>
+              <SaleBadge percent={priced.discountPercent} />
+              <span className="text-sm font-medium text-red-600">
+                {t('product.youSave', { amount: fmt(priced.compareAt - currentPrice) })}
+              </span>
+            </>
           )}
         </div>
 

@@ -7,6 +7,7 @@ import { ProductService } from '../services/product-service';
 import { useSettingsStore } from './settings-store';
 import i18n from '../i18n';
 import { itemOf, track } from '../lib/analytics';
+import { resolvePrice } from '../lib/pricing';
 
 interface CartState {
   items: CartItem[];
@@ -64,7 +65,7 @@ export const useCartStore = create<CartState>()(
           } else {
             track('add_to_cart', {
               currency: useSettingsStore.getState().settings.currency || 'GEL',
-              value: (variant?.price ?? product.price) * (nextQty - (existingItem?.quantity || 0)),
+              value: resolvePrice(product, variant).price * (nextQty - (existingItem?.quantity || 0)),
               items: [itemOf(product, variant, nextQty - (existingItem?.quantity || 0))],
             });
           }
@@ -167,7 +168,7 @@ export const useCartStore = create<CartState>()(
       getSubtotal: () => {
         const { items } = get();
         return items.reduce((total, item) => {
-            const price = item.selectedVariant?.price || item.product.price;
+            const price = resolvePrice(item.product, item.selectedVariant).price;
             return total + (price * item.quantity);
         }, 0);
       },

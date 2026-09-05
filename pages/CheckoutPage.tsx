@@ -282,10 +282,10 @@ export const CheckoutPage = () => {
                     type="button"
                     className="ml-3 underline font-medium"
                     onClick={() => {
+                      // The pending order stays: the same order is re-priced
+                      // and retried, so a merchant hiccup does not leave a
+                      // trail of abandoned orders or trip the throttle.
                       mountedTokenRef.current = null;
-                      PaymentService.clearPendingCheckout();
-                      setPendingOrderId(null);
-                      setChargedTotal(null);
                       setError(null);
                       setStep('shipping');
                       setTimeout(() => setStep('payment'), 0);

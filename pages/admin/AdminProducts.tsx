@@ -19,6 +19,7 @@ import { EntitySeoFields } from '../../components/admin/SeoFields';
 import { Pagination, usePagination } from '../../components/admin/Pagination';
 import { slugifyLabel } from '../../lib/taxonomy';
 import { absoluteUrl } from '../../lib/seo';
+import { variantBreaksSale } from '../../lib/pricing';
 
 /** Only rendered while previewing a playback id, so it loads on demand. */
 const MuxPlayer = lazy(() => import('@mux/mux-player-react'));
@@ -92,6 +93,7 @@ const ImageQualityNote: React.FC<{ report?: UploadedImage; bgColor?: string }> =
 const attentionReason = (p: Product): string | null => {
   if (!(p.price > 0)) return 'Price is zero';
   if (p.compareAtPrice !== undefined && p.compareAtPrice <= p.price) return 'Sale fields reversed';
+  if ((p.variants || []).some(v => variantBreaksSale(p, v))) return 'Sale does not reach every option';
   if (!p.images?.length) return 'No image';
   return null;
 };
@@ -487,6 +489,12 @@ export const AdminProducts = () => {
         const compareAt = Number(formData.compareAtPrice);
         if (!(compareAt > sellingPrice)) {
           addToast('The compare-at price is the price before the discount — it has to be higher than the selling price', 'error');
+          return;
+        }
+      }
+      for (const variant of formData.variants || []) {
+        if (variant.compareAtPrice !== undefined && !(variant.compareAtPrice > (variant.price ?? sellingPrice))) {
+          addToast(`Option "${variant.name || '?'}": the "was" price has to be higher than its price`, 'error');
           return;
         }
       }
@@ -914,14 +922,17 @@ export const AdminProducts = () => {
                             {(formData.variants || []).map((variant, index) => (
                                 <div key={variant.id} className="bg-white border border-gray-100 rounded-xl p-3 space-y-3">
                                     <div className="grid grid-cols-12 gap-2 items-center">
-                                        <div className="col-span-4">
+                                        <div className="col-span-3">
                                             <Input placeholder="Name (e.g. 50ml)" value={variant.name} onChange={e => updateVariant(index, { name: e.target.value })} />
                                         </div>
-                                        <div className="col-span-3">
+                                        <div className="col-span-2">
                                             <Input placeholder="SKU" value={variant.sku || ''} onChange={e => updateVariant(index, { sku: e.target.value })} />
                                         </div>
                                         <div className="col-span-2">
-                                            <Input type="number" step="0.01" placeholder="Price" value={variant.price ?? ''} onChange={e => updateVariant(index, { price: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                                            <Input type="number" step="0.01" placeholder="Price" title="Leave empty to use the product price and follow its sale" value={variant.price ?? ''} onChange={e => updateVariant(index, { price: e.target.value === '' ? undefined : Number(e.target.value) })} />
+                                        </div>
+                                        <div className="col-span-2">
+                                            <Input type="number" step="0.01" placeholder="Was" title="This option's own price before a discount" value={variant.compareAtPrice ?? ''} onChange={e => updateVariant(index, { compareAtPrice: e.target.value === '' ? undefined : Number(e.target.value) })} />
                                         </div>
                                         <div className="col-span-2">
                                             <Input type="number" placeholder="Stock" value={variant.inventoryQuantity} onChange={e => updateVariant(index, { inventoryQuantity: Number(e.target.value) })} />
@@ -930,6 +941,11 @@ export const AdminProducts = () => {
                                             <Trash2 className="w-4 h-4" />
                                         </button>
                                     </div>
+                                    {isOnSale && variantBreaksSale({ price: Number(formData.price), compareAtPrice: Number(formData.compareAtPrice) }, variant) && (
+                                        <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                                            This option has its own price, so the product's sale does not reach it. Clear the price to follow the sale, or give the option its own "was" price above its price.
+                                        </p>
+                                    )}
                                     <div className="flex flex-wrap items-start gap-3 pt-1 border-t border-gray-50">
                                         <div className="w-14 h-14 rounded-lg overflow-hidden border border-gray-200 bg-gray-50 shrink-0">
                                           {variant.imageUrl ? (

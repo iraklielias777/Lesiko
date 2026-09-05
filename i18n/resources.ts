@@ -114,6 +114,7 @@ export const resources = {
         gentle: "Gentle formulas"
       },
       product: {
+        youSave: "You save {{amount}}",
         desc: "Description",
         ingredients: "Ingredients",
         reviews: "Reviews",
@@ -129,6 +130,7 @@ export const resources = {
         quickView: "Quick View"
       },
       filters: {
+        biggestDiscount: "Biggest discount",
         skinConcerns: "Skin concerns / types",
         onSale: "On sale",
         sortBy: "Sort by",
@@ -588,6 +590,7 @@ export const resources = {
         gentle: "ნაზი ფორმულა"
       },
       product: {
+        youSave: "დანაზოგი: {{amount}}",
         desc: "აღწერა",
         ingredients: "შემადგენლობა",
         reviews: "შეფასებები",
@@ -603,6 +606,7 @@ export const resources = {
         quickView: "სწრაფი ნახვა"
       },
       filters: {
+        biggestDiscount: "ყველაზე დიდი ფასდაკლება",
         skinConcerns: "კანის ტიპი",
         onSale: "ფასდაკლებით",
         sortBy: "სორტირება",

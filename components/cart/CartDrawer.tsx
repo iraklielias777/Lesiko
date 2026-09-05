@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { useTranslation } from 'react-i18next';
 import { useFormatPrice } from '../../lib/format';
 import { ProductThumb } from '../product/ProductThumb';
+import { resolvePrice } from '../../lib/pricing';
 
 export const CartDrawer = () => {
   const fmt = useFormatPrice();
@@ -119,7 +120,7 @@ export const CartDrawer = () => {
           ) : (
             items.map((item) => {
               // Determine display price: variant price > base price
-              const displayPrice = item.selectedVariant?.price || item.product.price;
+              const displayPrice = resolvePrice(item.product, item.selectedVariant).price;
               
               return (
                 <div key={item.id} className="flex gap-4 animate-fade-in group bg-white p-3 rounded-xl border border-gray-100 hover:border-brand-green/30 transition-colors shadow-sm">

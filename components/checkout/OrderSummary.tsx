@@ -4,6 +4,7 @@ import { CartItem } from '../../types';
 import { useFormatPrice } from '../../lib/format';
 import { useTranslation } from 'react-i18next';
 import { ProductThumb } from '../product/ProductThumb';
+import { resolvePrice } from '../../lib/pricing';
 
 interface OrderSummaryProps {
   items: CartItem[];
@@ -22,7 +23,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({ items, subtotal, shi
       
       <div className="space-y-4 mb-6 max-h-60 overflow-y-auto pr-2">
         {items.map((item) => {
-          const displayPrice = item.selectedVariant?.price || item.product.price;
+          const displayPrice = resolvePrice(item.product, item.selectedVariant).price;
           
           return (
             <div key={item.id} className="flex gap-4">

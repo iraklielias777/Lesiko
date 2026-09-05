@@ -1,6 +1,7 @@
 
 import { Order, CartItem } from '../types';
 import { supabase } from '../lib/supabase';
+import { resolvePrice } from '../lib/pricing';
 
 // order_items stores a snapshot of the name and price at purchase time; the
 // join back to products is only there to recover an image and a link target,
@@ -111,7 +112,7 @@ export const OrderService = {
                 productName: item.product.name,
                 variantName: item.selectedVariant?.name,
                 quantity: item.quantity,
-                price: item.selectedVariant?.price || item.product.price,
+                price: resolvePrice(item.product, item.selectedVariant).price,
             })),
         });
 

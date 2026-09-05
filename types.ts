@@ -3,6 +3,8 @@ export interface ProductVariant {
   id: string;
   name: string; // e.g. "Red", "XL", "100ml"
   price?: number; // Optional override
+  /** Optional struck-through price for this option alone; see lib/pricing.ts. */
+  compareAtPrice?: number;
   inventoryQuantity: number;
   sku?: string;
   /** Optional storefront photo; when set, detail page shows it for this variant. */

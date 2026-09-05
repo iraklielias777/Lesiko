@@ -1,4 +1,5 @@
 import type { CartItem, Order, Product, ProductVariant } from '../types';
+import { resolvePrice } from './pricing';
 
 /**
  * Google Analytics 4, switched on by a measurement ID in Admin → Settings and
@@ -60,7 +61,7 @@ export const itemOf = (product: Product, variant?: ProductVariant | null, quanti
   item_brand: product.brand?.name,
   item_category: product.category?.slug,
   item_variant: variant?.name,
-  price: variant?.price ?? product.price,
+  price: resolvePrice(product, variant).price,
   quantity,
 });
 
@@ -72,6 +73,6 @@ export const itemsOfOrder = (order: Order) =>
     item_id: line.product?.id,
     item_name: line.product?.name,
     item_variant: line.selectedVariant?.name,
-    price: line.selectedVariant?.price ?? line.product?.price,
+    price: line.product ? resolvePrice(line.product, line.selectedVariant).price : undefined,
     quantity: line.quantity,
   }));

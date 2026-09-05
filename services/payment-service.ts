@@ -53,6 +53,23 @@ let inflightBoot: { key: string; promise: Promise<FlittTokenResult> } | null = n
 const paymentsUrl = (path: string) =>
   `${SUPABASE_URL}/functions/v1/payments${path}`;
 
+/** Longest the checkout waits on the payment service or on Flitt's script. */
+const PAYMENT_REQUEST_TIMEOUT_MS = 30_000;
+const ASSET_TIMEOUT_MS = 20_000;
+
+/**
+ * A request that never answers used to leave the shopper on "Preparing secure
+ * payment…" indefinitely; now it becomes an error with a Retry link.
+ */
+const withTimeout = <T,>(work: Promise<T>, ms: number, message: string): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    work.then(
+      value => { window.clearTimeout(timer); resolve(value); },
+      err => { window.clearTimeout(timer); reject(err); },
+    );
+  });
+
 async function invokePayments<T>(
   path: string,
   body: Record<string, unknown>,
@@ -66,14 +83,23 @@ async function invokePayments<T>(
     : { data: { session: null } };
   const bearer = sessionData.session?.access_token || SUPABASE_PUBLISHABLE_KEY;
 
-  const res = await fetch(paymentsUrl(path), {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: SUPABASE_PUBLISHABLE_KEY,
-      Authorization: `Bearer ${bearer}`,
-    },
-    body: JSON.stringify(body),
+  const controller = new AbortController();
+  const res = await withTimeout(
+    fetch(paymentsUrl(path), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${bearer}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    }),
+    PAYMENT_REQUEST_TIMEOUT_MS,
+    'The payment service did not respond. Please try again.',
+  ).catch(err => {
+    controller.abort();
+    throw err;
   });
 
   const json = await res.json().catch(() => ({}));
@@ -161,6 +187,11 @@ export const PaymentService = {
         const created = await PaymentService.createPendingOrder(order);
         orderId = created.orderId;
         publicToken = created.publicToken;
+        // Remembered before the token request, not after: if Flitt refuses the
+        // token, Retry must reuse this order (the server re-prices it and
+        // resets it to pending) rather than create another one and walk into
+        // the per-email throttle.
+        if (opts?.bootKey) PaymentService.rememberPendingCheckout(orderId, opts.bootKey, publicToken);
       }
 
       const token = await PaymentService.createFlittToken(orderId, lang);
@@ -209,7 +240,7 @@ export const PaymentService = {
     if (window.checkout) return Promise.resolve();
     if (flittAssetsPromise) return flittAssetsPromise;
 
-    flittAssetsPromise = new Promise((resolve, reject) => {
+    const load = new Promise<void>((resolve, reject) => {
       if (!document.querySelector(`link[href="${FLITT_CSS}"]`)) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -233,6 +264,13 @@ export const PaymentService = {
       document.body.appendChild(script);
     });
 
+    flittAssetsPromise = withTimeout(load, ASSET_TIMEOUT_MS, 'The payment form did not load. Please try again.')
+      .catch(err => {
+        // Do not cache a failure: the next attempt (or Retry) gets a fresh try.
+        flittAssetsPromise = null;
+        document.querySelector(`script[src="${FLITT_JS}"]`)?.remove();
+        throw err;
+      });
     return flittAssetsPromise;
   },
 

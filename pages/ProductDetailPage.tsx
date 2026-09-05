@@ -28,7 +28,7 @@ export const ProductDetailPage = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selection, setSelection] = useState<{ variant: ProductVariant | null; price: number; stock: number } | null>(null);
+  const [selection, setSelection] = useState<{ variant: ProductVariant | null; price: number; compareAt?: number; stock: number } | null>(null);
   
   const addRecentlyViewed = useRecentlyViewedStore((state) => state.addProduct);
   const addItem = useCartStore((state) => state.addItem);
@@ -181,9 +181,9 @@ export const ProductDetailPage = () => {
                   {product.brand.name}{selection?.variant ? ` · ${selection.variant.name}` : ''}
                 </p>
                 <div className="flex items-baseline gap-2">
-                    <span className="font-bold text-gray-900 text-lg">{fmt(selection?.price ?? product.price)}</span>
-                    {product.compareAtPrice && !selection?.variant && (
-                        <span className="text-xs text-gray-400 line-through">{fmt(product.compareAtPrice)}</span>
+                    <span className={`font-bold text-lg ${selection?.compareAt !== undefined ? 'text-red-600' : 'text-gray-900'}`}>{fmt(selection?.price ?? product.price)}</span>
+                    {selection?.compareAt !== undefined && (
+                        <span className="text-xs text-gray-400 line-through">{fmt(selection.compareAt)}</span>
                     )}
                 </div>
             </div>

@@ -12,6 +12,8 @@ import { imageSrcSet, imageUrl } from '../../lib/image-url';
 import { useFormatPrice } from '../../lib/format';
 import { CARD_SIZES, fitClass, frameColor, primaryImageOf, resizeOf } from '../../lib/product-image';
 import { useImageFade } from '../../lib/use-image-fade';
+import { resolvePrice } from '../../lib/pricing';
+import { SaleBadge } from './SaleBadge';
 
 interface ProductCardProps {
   product: Product;
@@ -31,9 +33,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, sizes = CARD_
   const fade = useImageFade();
   
   const isFavorited = isInWishlist(product.id);
-  const discountPercentage = product.compareAtPrice 
-    ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
-    : 0;
+  const priced = resolvePrice(product);
 
   // Localization logic
   const displayName = i18n.language === 'ka' ? (product.nameKa || product.name) : product.name;
@@ -77,11 +77,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, sizes = CARD_
               {t('common.new')}
             </span>
           )}
-          {discountPercentage > 0 && (
-            <span className="bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm">
-              -{discountPercentage}%
-            </span>
-          )}
+          <SaleBadge percent={priced.discountPercent} />
           {product.inventoryQuantity === 0 && (
             <span className="bg-gray-800/90 backdrop-blur-sm text-white text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-sm shadow-sm">
               {t('common.soldOut')}
@@ -157,12 +153,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, sizes = CARD_
              </Link>
           </div>
           <div className="text-right flex flex-col items-end">
-             <span className="font-bold text-gray-900 text-sm">
-                {fmt(product.price)}
+             <span className={`font-bold text-sm ${priced.onSale ? 'text-red-600' : 'text-gray-900'}`}>
+                {fmt(priced.price)}
              </span>
-             {product.compareAtPrice && (
+             {priced.compareAt !== undefined && (
                <span className="text-xs text-gray-400 line-through">
-                 {fmt(product.compareAtPrice)}
+                 {fmt(priced.compareAt)}
                </span>
              )}
           </div>

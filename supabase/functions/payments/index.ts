@@ -129,6 +129,35 @@ const loadStoreSettings = async (): Promise<{
   };
 };
 
+/**
+ * Mirror of lib/pricing.ts resolvePrice(): the amount charged must be the
+ * amount the storefront showed. Keep the two in step. A variant with no price
+ * follows the product; a variant with its own compare-at above its price is
+ * on sale by itself; a variant priced exactly at the product's compare-at is
+ * the old price copied into every shade and follows the product's sale; any
+ * other variant price stands on its own.
+ */
+const money = (value: unknown): number | null => {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
+const resolveUnitPrice = (
+  product: { price?: unknown; compare_at_price?: unknown },
+  variant?: Record<string, unknown>,
+): number => {
+  const base = money(product.price) ?? 0;
+  const compareRaw = money(product.compare_at_price);
+  const baseCompare = compareRaw != null && compareRaw > base ? compareRaw : null;
+  const variantPrice = variant ? money(variant.price) : null;
+  if (variantPrice == null) return base;
+  const variantCompare = variant ? money(variant.compareAtPrice ?? variant.compare_at_price) : null;
+  if (variantCompare != null && variantCompare > variantPrice) return variantPrice;
+  if (baseCompare != null && Math.abs(variantPrice - baseCompare) < 0.005) return base;
+  return variantPrice;
+};
+
 class StockError extends Error {
   constructor(message: string) {
     super(message);
@@ -183,7 +212,7 @@ const repriceOrder = async (orderId: string): Promise<{
   const productIds = [...new Set(items.map((i) => i.product_id).filter(Boolean))];
   const { data: products, error: productsError } = await admin
     .from('products')
-    .select('id, price, inventory_quantity, variants')
+    .select('id, price, compare_at_price, inventory_quantity, variants')
     .in('id', productIds);
 
   if (productsError) throw productsError;
@@ -205,16 +234,11 @@ const repriceOrder = async (orderId: string): Promise<{
       );
     }
 
-    let unit = Number(product.price);
     const variants = Array.isArray(product.variants) ? product.variants : [];
-    if (item.variant_name) {
-      const match = variants.find(
-        (v: { name?: string; price?: number }) => v?.name === item.variant_name,
-      );
-      if (match?.price != null && Number.isFinite(Number(match.price))) {
-        unit = Number(match.price);
-      }
-    }
+    const match = item.variant_name
+      ? (variants.find((v: { name?: string }) => v?.name === item.variant_name) as Record<string, unknown> | undefined)
+      : undefined;
+    const unit = resolveUnitPrice(product, match);
 
     if (!Number.isFinite(unit) || unit < 0) {
       throw new Error(`Invalid price for product ${item.product_id}`);
@@ -435,9 +459,14 @@ const handleCallback = async (req: Request): Promise<Response> => {
       .eq('order_number', flittOrderId)
       .maybeSingle();
     if (!byNumber) {
-      await alert('callback_unknown_order', 'warning',
-        'A verified payment callback referenced an order that does not exist',
-        { flittOrderId, orderStatus: payload.order_status, paymentId: payload.payment_id });
+      // An order removed after its token was minted (test clean-up) still
+      // expires at Flitt hours later; that is not worth waking anyone. Money
+      // moving for an order we do not have is.
+      if (String(payload.order_status ?? '') !== 'expired') {
+        await alert('callback_unknown_order', 'warning',
+          'A verified payment callback referenced an order that does not exist',
+          { flittOrderId, orderStatus: payload.order_status, paymentId: payload.payment_id });
+      }
       return new Response('ok', { status: 200 });
     }
     return applyCallback(byNumber.id, byNumber.payment_status, payload);

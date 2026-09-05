@@ -44,7 +44,7 @@ const FULL_COLUMNS = '*, brands(*), categories(*)';
  */
 const FACET_COLUMNS = 'price, tags, sub_category, category_id, brand_id';
 
-export type SortKey = 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating';
+export type SortKey = 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating' | 'discount';
 
 export interface CatalogueFilters {
   query?: string;
@@ -224,6 +224,8 @@ const applySort = (query: any, sort: SortKey = 'relevance') => {
     case 'price_asc':  query = query.order('price', { ascending: true }); break;
     case 'price_desc': query = query.order('price', { ascending: false }); break;
     case 'rating':     query = query.order('average_rating', { ascending: false }); break;
+    // Stored generated column, migration 0022: the sale page's default order.
+    case 'discount':   query = query.order('discount_percent', { ascending: false }); break;
     // "Relevance" has always meant newest-first here, because that is the order
     // the unsorted list arrived in. "Newest" used to run a comparator that was
     // not a valid ordering (`b.isNew ? 1 : -1`); both now order by recency.

@@ -179,6 +179,12 @@ const robots = (config: SiteConfig): Response => {
     'Disallow: /*?skinType=',
     'Disallow: /*?subCategory=',
     'Disallow: /*?brands=',
+    'Disallow: /*?sort=',
+    'Disallow: /*?page=',
+    'Disallow: /*?min=',
+    'Disallow: /*?max=',
+    'Disallow: /*?inStock=',
+    'Disallow: /*?onSale=',
     'Allow: /',
   ];
 

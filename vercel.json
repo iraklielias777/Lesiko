@@ -50,6 +50,17 @@
   ],
   "rewrites": [
     {
+      "source": "/order-confirmation",
+      "has": [
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "(?i)application/x-www-form-urlencoded.*"
+        }
+      ],
+      "destination": "/api/return"
+    },
+    {
       "source": "/robots.txt",
       "destination": "https://vhuagxhfmhzyfazbhwpx.supabase.co/functions/v1/seo/robots.txt"
     },

@@ -1,6 +1,6 @@
 
 import React, { useEffect, Suspense, ReactNode, Component, lazy, useRef } from 'react';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigationType } from 'react-router-dom';
 
 // Layout & Components. These render on every storefront route, so they belong
 // in the entry chunk.
@@ -20,6 +20,7 @@ import { ProductDetailPage } from './pages/ProductDetailPage';
 import { trackPageView } from './lib/analytics';
 import { reportError } from './lib/error-reporting';
 import { dismissSplash } from './lib/splash';
+import { recallScroll, rememberScroll, restoreScrollWhenReady } from './lib/scroll-memory';
 
 /**
  * Everything below is loaded on demand.
@@ -30,32 +31,60 @@ import { dismissSplash } from './lib/splash';
  * Checkout, the account area and the auth pages are the same story: real code,
  * but not on the path to a first paint.
  */
-const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then(m => ({ default: m.AdminLayout })));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
-const AdminProducts = lazy(() => import('./pages/admin/AdminProducts').then(m => ({ default: m.AdminProducts })));
-const AdminOrders = lazy(() => import('./pages/admin/AdminOrders').then(m => ({ default: m.AdminOrders })));
-const AdminCustomers = lazy(() => import('./pages/admin/AdminCustomers').then(m => ({ default: m.AdminCustomers })));
-const AdminSettings = lazy(() => import('./pages/admin/AdminSettings').then(m => ({ default: m.AdminSettings })));
-const AdminCategories = lazy(() => import('./pages/admin/AdminCategories').then(m => ({ default: m.AdminCategories })));
-const AdminBrands = lazy(() => import('./pages/admin/AdminBrands').then(m => ({ default: m.AdminBrands })));
-const AdminContent = lazy(() => import('./pages/admin/AdminContent').then(m => ({ default: m.AdminContent })));
-const AdminSEO = lazy(() => import('./pages/admin/AdminSEO').then(m => ({ default: m.AdminSEO })));
+/**
+ * A tab opened before a deploy still asks for the old chunk names, which no
+ * longer exist ("Failed to fetch dynamically imported module"). One reload
+ * fetches the new index and the new names; the flag stops a reload loop if
+ * the failure is something else.
+ */
+const RELOAD_FLAG = 'lesiko-chunk-reload';
+const lazyPage = <T,>(loader: () => Promise<T>, pick: (m: T) => React.ComponentType<any>) =>
+  lazy(() =>
+    loader()
+      .then(m => {
+        try { sessionStorage.removeItem(RELOAD_FLAG); } catch { /* ignore */ }
+        return { default: pick(m) };
+      })
+      .catch(err => {
+        let reloaded = false;
+        try {
+          reloaded = sessionStorage.getItem(RELOAD_FLAG) === '1';
+          if (!reloaded) sessionStorage.setItem(RELOAD_FLAG, '1');
+        } catch { /* ignore */ }
+        if (!reloaded && /import|module|chunk/i.test(String(err?.message || err))) {
+          window.location.reload();
+          return new Promise<{ default: React.ComponentType<any> }>(() => undefined);
+        }
+        throw err;
+      }),
+  );
 
-const BrandIndexPage = lazy(() => import('./pages/BrandIndexPage').then(m => ({ default: m.BrandIndexPage })));
-const WishlistPage = lazy(() => import('./pages/WishlistPage').then(m => ({ default: m.WishlistPage })));
-const CartPage = lazy(() => import('./pages/CartPage').then(m => ({ default: m.CartPage })));
-const CheckoutPage = lazy(() => import('./pages/CheckoutPage').then(m => ({ default: m.CheckoutPage })));
-const OrderConfirmationPage = lazy(() => import('./pages/OrderConfirmationPage').then(m => ({ default: m.OrderConfirmationPage })));
-const LoginPage = lazy(() => import('./pages/LoginPage').then(m => ({ default: m.LoginPage })));
-const RegisterPage = lazy(() => import('./pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
-const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage').then(m => ({ default: m.ForgotPasswordPage })));
-const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
-const AccountPage = lazy(() => import('./pages/AccountPage').then(m => ({ default: m.AccountPage })));
-const AccountOrderDetailPage = lazy(() => import('./pages/AccountOrderDetailPage').then(m => ({ default: m.AccountOrderDetailPage })));
-const TrackOrderPage = lazy(() => import('./pages/TrackOrderPage').then(m => ({ default: m.TrackOrderPage })));
-const HelpPage = lazy(() => import('./pages/HelpPage').then(m => ({ default: m.HelpPage })));
-const NotFoundPage = lazy(() => import('./pages/NotFoundPage').then(m => ({ default: m.NotFoundPage })));
-const LegalPage = lazy(() => import('./pages/LegalPage').then(m => ({ default: m.LegalPage })));
+const AdminLayout = lazyPage(() => import('./components/admin/AdminLayout'), m => m.AdminLayout);
+const AdminDashboard = lazyPage(() => import('./pages/admin/AdminDashboard'), m => m.AdminDashboard);
+const AdminProducts = lazyPage(() => import('./pages/admin/AdminProducts'), m => m.AdminProducts);
+const AdminOrders = lazyPage(() => import('./pages/admin/AdminOrders'), m => m.AdminOrders);
+const AdminCustomers = lazyPage(() => import('./pages/admin/AdminCustomers'), m => m.AdminCustomers);
+const AdminSettings = lazyPage(() => import('./pages/admin/AdminSettings'), m => m.AdminSettings);
+const AdminCategories = lazyPage(() => import('./pages/admin/AdminCategories'), m => m.AdminCategories);
+const AdminBrands = lazyPage(() => import('./pages/admin/AdminBrands'), m => m.AdminBrands);
+const AdminContent = lazyPage(() => import('./pages/admin/AdminContent'), m => m.AdminContent);
+const AdminSEO = lazyPage(() => import('./pages/admin/AdminSEO'), m => m.AdminSEO);
+
+const BrandIndexPage = lazyPage(() => import('./pages/BrandIndexPage'), m => m.BrandIndexPage);
+const WishlistPage = lazyPage(() => import('./pages/WishlistPage'), m => m.WishlistPage);
+const CartPage = lazyPage(() => import('./pages/CartPage'), m => m.CartPage);
+const CheckoutPage = lazyPage(() => import('./pages/CheckoutPage'), m => m.CheckoutPage);
+const OrderConfirmationPage = lazyPage(() => import('./pages/OrderConfirmationPage'), m => m.OrderConfirmationPage);
+const LoginPage = lazyPage(() => import('./pages/LoginPage'), m => m.LoginPage);
+const RegisterPage = lazyPage(() => import('./pages/RegisterPage'), m => m.RegisterPage);
+const ForgotPasswordPage = lazyPage(() => import('./pages/ForgotPasswordPage'), m => m.ForgotPasswordPage);
+const ResetPasswordPage = lazyPage(() => import('./pages/ResetPasswordPage'), m => m.ResetPasswordPage);
+const AccountPage = lazyPage(() => import('./pages/AccountPage'), m => m.AccountPage);
+const AccountOrderDetailPage = lazyPage(() => import('./pages/AccountOrderDetailPage'), m => m.AccountOrderDetailPage);
+const TrackOrderPage = lazyPage(() => import('./pages/TrackOrderPage'), m => m.TrackOrderPage);
+const HelpPage = lazyPage(() => import('./pages/HelpPage'), m => m.HelpPage);
+const NotFoundPage = lazyPage(() => import('./pages/NotFoundPage'), m => m.NotFoundPage);
+const LegalPage = lazyPage(() => import('./pages/LegalPage'), m => m.LegalPage);
 
 /** Shown while a route chunk arrives. Matches the spinner the app already uses. */
 const RouteFallback = () => (
@@ -78,12 +107,48 @@ const SplashGate = () => {
   return null;
 };
 
-// Scroll to top on route change
+/**
+ * A new page starts at the top; back and forward go back to where you were.
+ * The browser's own restoration cannot do the second half for a page whose
+ * content arrives after the navigation, so this remembers the offset per
+ * history entry and restores it once the page is tall enough (lib/scroll-memory).
+ */
 const ScrollToTop = () => {
-  const { pathname, search } = useLocation();
+  const { pathname, search, key } = useLocation();
+  const navigationType = useNavigationType();
   const firstView = useRef(true);
+
   useEffect(() => {
-    window.scrollTo(0, 0);
+    if ('scrollRestoration' in window.history) window.history.scrollRestoration = 'manual';
+  }, []);
+
+  useEffect(() => {
+    if (navigationType === 'POP') {
+      const y = recallScroll(key);
+      if (y) restoreScrollWhenReady(y);
+    } else {
+      window.scrollTo(0, 0);
+    }
+    // Only the path decides this: changing a filter rewrites the query string
+    // and must not throw the shopper back to the top of the listing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  useEffect(() => {
+    let timer: number | undefined;
+    const save = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => rememberScroll(key), 150);
+    };
+    window.addEventListener('scroll', save, { passive: true });
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener('scroll', save);
+      rememberScroll(key);
+    };
+  }, [key]);
+
+  useEffect(() => {
     // The first view is reported by initAnalytics once the measurement ID is
     // known; this covers every navigation after it.
     if (firstView.current) {

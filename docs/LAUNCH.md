@@ -66,7 +66,7 @@ test-mode purchase has been seen end to end on the dashboard.
 | --- | --- | --- | --- |
 | Vercel → Settings → Environment Variables (Production) | `VITE_SUPABASE_URL` | `https://vhuagxhfmhzyfazbhwpx.supabase.co` | public |
 | Vercel → same | `VITE_SUPABASE_PUBLISHABLE_KEY` | the anon/publishable key from Supabase → Project Settings → API | public; RLS protects the data |
-| Supabase → Edge Functions → Secrets | `FLITT_MERCHANT_ID` | numeric merchant id from the Flitt merchant portal | sandbox `1396424` for the test purchase, then the live id |
+| Supabase → Edge Functions → Secrets | `FLITT_MERCHANT_ID` | numeric merchant id from the Flitt merchant portal | sandbox `1549901` for the test purchase (Flitt's documented test merchant), then the live id |
 | Supabase → same | `FLITT_SECRET_KEY` | the payment key (secret) from the Flitt portal | sandbox `test`, then the live key; signs every token request and verifies every callback |
 | Supabase → same | `SITE_URL` | `https://www.lesiko.ge` or deleted | optional fallback; Admin → SEO wins |
 | Supabase → Authentication → URL configuration | Site URL | `https://www.lesiko.ge` | where email links land when no redirect is given |
@@ -77,6 +77,15 @@ Nothing from Flitt ever goes on Vercel, and nothing else is needed: `SUPABASE_UR
 `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected into the edge
 functions by Supabase itself. Changing a secret takes effect on the next
 function call; no redeploy.
+
+In the portal, set **Redirect method to the result page** to `GET`. If it is
+left on `POST`, `api/return.js` still turns Flitt's form post into a GET of the
+same confirmation address (Vercel routes form posts there via `vercel.json`),
+so the shopper lands on the confirmation page either way.
+
+Test cards for the sandbox merchant (any expiry, any CVV): `4444555566661111`
+approves through 3-D Secure, `4444111166665555` declines, `4444555511116666`
+approves without 3-D Secure. Source: docs.flitt.com/api/testing.
 
 ## 6. One-off scripts (from the repo, with the admin login)
 

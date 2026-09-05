@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { Filter, ChevronDown, SlidersHorizontal, X, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -18,24 +18,75 @@ import { useSettingsStore } from '../store/settings-store';
 import { CARD_SIZES } from '../lib/product-image';
 import { thumbSrc, thumbSrcSet } from '../lib/image-url';
 
-type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating';
+type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating' | 'discount';
+const SORT_OPTIONS: SortOption[] = ['relevance', 'price_asc', 'price_desc', 'newest', 'rating', 'discount'];
 
 const ITEMS_PER_PAGE = 12;
+
+/**
+ * Every filter, the sort and the page number live in the address bar. That is
+ * what makes a listing survive a trip to a product and back, a reload, or a
+ * shared link — component state used to hold them and lost them on the way
+ * back. The crawler rules in the seo function keep these parameters out of
+ * the index; the canonical stays the clean path.
+ */
+interface RouteContext {
+  slug?: string;
+  isSalePage: boolean;
+  isBrandPage: boolean;
+}
+
+const list = (value: string | null): string[] =>
+  value ? value.split(',').map(v => v.trim()).filter(Boolean) : [];
+
+const defaultSortFor = (ctx: RouteContext): SortOption => (ctx.isSalePage ? 'discount' : 'relevance');
+
+const readFilters = (params: URLSearchParams, ctx: RouteContext): SearchFilters => {
+  const sort = params.get('sort') as SortOption | null;
+  const min = Number(params.get('min'));
+  const max = Number(params.get('max'));
+  return {
+    query: params.get('q') || undefined,
+    categories: ctx.slug && ctx.slug !== 'shop-all' && !ctx.isSalePage && !ctx.isBrandPage ? [ctx.slug] : [],
+    subCategories: list(params.get('subCategory')),
+    brands: ctx.isBrandPage ? (ctx.slug ? [ctx.slug] : []) : list(params.get('brands')),
+    skinTypes: list(params.get('skinType')),
+    minPrice: params.has('min') && Number.isFinite(min) ? min : undefined,
+    maxPrice: params.has('max') && Number.isFinite(max) ? max : undefined,
+    inStock: params.get('inStock') === '1' || undefined,
+    onSale: ctx.isSalePage ? true : params.get('onSale') === '1' || undefined,
+    sort: sort && SORT_OPTIONS.includes(sort) ? sort : defaultSortFor(ctx),
+  };
+};
+
+/** A changed filter always starts from page one, so `page` is never carried over. */
+const writeFilters = (next: SearchFilters, ctx: RouteContext): URLSearchParams => {
+  const params = new URLSearchParams();
+  if (next.query) params.set('q', next.query);
+  if (next.subCategories?.length) params.set('subCategory', next.subCategories.join(','));
+  if (!ctx.isBrandPage && next.brands?.length) params.set('brands', next.brands.join(','));
+  if (next.skinTypes?.length) params.set('skinType', next.skinTypes.join(','));
+  if (next.minPrice !== undefined) params.set('min', String(next.minPrice));
+  if (next.maxPrice !== undefined) params.set('max', String(next.maxPrice));
+  if (next.inStock) params.set('inStock', '1');
+  if (!ctx.isSalePage && next.onSale) params.set('onSale', '1');
+  if (next.sort && next.sort !== defaultSortFor(ctx)) params.set('sort', next.sort);
+  return params;
+};
 
 export const ProductListingPage = () => {
   const { t, i18n } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const searchQuery = searchParams.get('q');
   const subCategoryParam = searchParams.get('subCategory');
-  const skinTypeParam = searchParams.get('skinType');
 
   const isSalePage = location.pathname === '/sale';
   // /brand/:slug and /products?brands=:slug are the same view; the dedicated
   // path exists so a brand has one address worth indexing and linking to.
   const isBrandPage = location.pathname.startsWith('/brand/');
-  const brandsParam = isBrandPage ? slug || null : searchParams.get('brands');
+  const routeContext: RouteContext = { slug, isSalePage, isBrandPage };
 
   const [brand, setBrand] = useState<Brand | undefined>();
   const storeName = useSettingsStore(s => s.settings.storeName);
@@ -47,65 +98,37 @@ export const ProductListingPage = () => {
   });
   const [loading, setLoading] = useState(true);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
   // Page headings resolve their display text from the category rows, so a
   // category added in the admin titles correctly in both languages.
   const categories = useCategories();
   
-  // Advanced Filter State
-  const [filters, setFilters] = useState<SearchFilters>({
-    sort: 'relevance'
-  });
+  // Filters are read from the address bar and written back to it — see
+  // readFilters/writeFilters above. `replace` keeps the history clean: one
+  // entry per listing, however many boxes were ticked, so "back" from a
+  // product returns to exactly this view.
+  const filters = useMemo(
+    () => readFilters(searchParams, routeContext),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [searchParams, slug, isSalePage, isBrandPage],
+  );
+  const currentPage = Math.max(1, Number(searchParams.get('page')) || 1);
+  // Headings still want the first skin type and brand, as before.
+  const skinTypeParam = filters.skinTypes?.[0] ?? null;
+  const brandsParam = isBrandPage ? slug || null : (filters.brands?.[0] ?? null);
+
+  const setFilters = (next: SearchFilters) => {
+    setSearchParams(writeFilters(next, routeContext), { replace: true });
+  };
+
+  const setCurrentPage = (page: number) => {
+    const params = new URLSearchParams(searchParams);
+    if (page > 1) params.set('page', String(page));
+    else params.delete('page');
+    setSearchParams(params, { replace: true });
+  };
 
   // Buffered Filter State for Mobile Drawer
   const [tempFilters, setTempFilters] = useState<SearchFilters>(filters);
-
-  // Sync URL/Slug with filters
-  useEffect(() => {
-    const newFilters: SearchFilters = { ...filters };
-    
-    // Main Category from slug
-    if (slug && slug !== 'shop-all' && !isSalePage && !isBrandPage) {
-      newFilters.categories = [slug];
-    } else {
-       newFilters.categories = [];
-    }
-
-    // Sale Mode
-    if (isSalePage) {
-        newFilters.onSale = true;
-        newFilters.categories = []; 
-    } else {
-        newFilters.onSale = false;
-    }
-
-    // Search Query
-    if (searchQuery) {
-      newFilters.query = searchQuery;
-    } else {
-      newFilters.query = undefined;
-    }
-
-    // SubCategory from URL
-    if (subCategoryParam) {
-      newFilters.subCategories = [subCategoryParam];
-    }
-    
-    // Skin Type from URL
-    if (skinTypeParam) {
-       newFilters.skinTypes = [skinTypeParam];
-    }
-
-    // Brands from URL
-    if (brandsParam) {
-        newFilters.brands = [brandsParam];
-    } else {
-        newFilters.brands = [];
-    }
-
-    setFilters(prev => ({ ...prev, ...newFilters }));
-    setCurrentPage(1); // Reset page on URL change
-  }, [slug, searchQuery, subCategoryParam, skinTypeParam, brandsParam, isSalePage, isBrandPage]);
 
   // The brand row carries its own SEO copy and description, so the page needs
   // more than the slug from the URL.
@@ -119,9 +142,6 @@ export const ProductListingPage = () => {
   // `filters` is rebuilt on every change, so its identity is useless as a
   // dependency; the serialised form only changes when a value actually does.
   const filterKey = JSON.stringify(filters);
-
-  // Changing a filter returns you to page one. Changing the page must not.
-  useEffect(() => { setCurrentPage(1); }, [filterKey]);
 
   // One page of results comes from the server now, not a slice of the whole
   // catalogue. The debounce covers the price inputs, which fire per keystroke.
@@ -168,7 +188,8 @@ export const ProductListingPage = () => {
     'price_asc': t('filters.priceLowHigh'),
     'price_desc': t('filters.priceHighLow'),
     'newest': t('filters.newest'),
-    'rating': t('filters.topRated')
+    'rating': t('filters.topRated'),
+    'discount': t('filters.biggestDiscount')
   };
 
   const getPageTitle = () => {

@@ -8,6 +8,7 @@ import { Button } from '../components/ui/Button';
 import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
 import { ProductThumb } from '../components/product/ProductThumb';
+import { resolvePrice } from '../lib/pricing';
 
 export const CartPage = () => {
   const fmt = useFormatPrice();
@@ -53,7 +54,7 @@ export const CartPage = () => {
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-4">
             {items.map(item => {
-              const displayPrice = item.selectedVariant?.price || item.product.price;
+              const displayPrice = resolvePrice(item.product, item.selectedVariant).price;
 
               return (
                 <div key={item.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex gap-4">
