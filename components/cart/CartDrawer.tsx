@@ -52,8 +52,8 @@ export const CartDrawer = () => {
           </button>
         </div>
 
-        {/* Free Shipping Progress Bar */}
-        {items.length > 0 && (
+        {/* Free Shipping Progress Bar — only when there is a threshold to reach */}
+        {items.length > 0 && freeShippingThreshold > 0 && (
             <div className="px-6 pt-6 pb-2">
                 <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
                     <div className="flex items-center gap-2 text-sm font-bold text-brand-dark mb-2">

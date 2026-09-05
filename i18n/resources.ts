@@ -3,7 +3,6 @@ export const resources = {
   en: {
     translation: {
       common: {
-        freeShippingAll: "Free shipping on all orders",
         free: "Free",
         menu: "Menu",
         readMore: "Read more",
@@ -115,7 +114,6 @@ export const resources = {
         gentle: "Gentle formulas"
       },
       product: {
-        freeShippingAll: "Free shipping on all orders",
         desc: "Description",
         ingredients: "Ingredients",
         reviews: "Reviews",
@@ -297,7 +295,6 @@ export const resources = {
       cart: {
         outOfStockToast: "This item is out of stock",
         onlyInStock: "Only {{count}} in stock for {{name}}",
-        addedToCart: "Added {{name}} to bag",
         awayFromFree: "{{amount}} away from free shipping",
         freeUnlocked: "Free shipping unlocked",
         taxesAtCheckout: "Shipping and taxes are calculated at checkout.",
@@ -480,7 +477,6 @@ export const resources = {
   ka: {
     translation: {
       common: {
-        freeShippingAll: "უფასო მიწოდება ყველა შეკვეთაზე",
         free: "უფასო",
         menu: "მენიუ",
         readMore: "სრულად",
@@ -592,7 +588,6 @@ export const resources = {
         gentle: "ნაზი ფორმულა"
       },
       product: {
-        freeShippingAll: "უფასო მიწოდება ყველა შეკვეთაზე",
         desc: "აღწერა",
         ingredients: "შემადგენლობა",
         reviews: "შეფასებები",
@@ -774,7 +769,6 @@ export const resources = {
       cart: {
         outOfStockToast: "ეს პროდუქტი მარაგში არ არის",
         onlyInStock: "{{name}} — მარაგშია მხოლოდ {{count}}",
-        addedToCart: "{{name}} დაემატა კალათას",
         awayFromFree: "უფასო მიწოდებამდე დარჩა {{amount}}",
         freeUnlocked: "უფასო მიწოდება ჩართულია",
         taxesAtCheckout: "მიწოდება და გადასახადები ითვლება გადახდისას.",

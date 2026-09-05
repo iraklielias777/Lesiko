@@ -76,13 +76,18 @@ export const Header = () => {
       <SearchOverlay isOpen={isSearchOverlayOpen} onClose={() => setIsSearchOverlayOpen(false)} />
       <div className="bg-brand-dark text-white text-[11px] uppercase tracking-widest py-2.5 px-4 text-center sm:text-left relative z-50">
         <div className="container mx-auto flex justify-between items-center">
-          <p className="font-medium hidden sm:block opacity-90">
-            {freeShippingThreshold > 0 ? t('common.freeShipping', { amount: fmt(freeShippingThreshold) }) : t('common.freeShippingAll')}
-          </p>
-          <p className="font-medium sm:hidden opacity-90">
-            {freeShippingThreshold > 0 ? t('product.freeShippingBadge', { amount: fmt(freeShippingThreshold) }) : t('product.freeShippingAll')}
-          </p>
-          <div className="flex items-center gap-6">
+          {/* Only a real threshold is worth announcing; with none set the bar carries just the links. */}
+          {freeShippingThreshold > 0 && (
+            <>
+              <p className="font-medium hidden sm:block opacity-90">
+                {t('common.freeShipping', { amount: fmt(freeShippingThreshold) })}
+              </p>
+              <p className="font-medium sm:hidden opacity-90">
+                {t('product.freeShippingBadge', { amount: fmt(freeShippingThreshold) })}
+              </p>
+            </>
+          )}
+          <div className="flex items-center gap-6 ml-auto">
             <button type="button" onClick={toggleLanguage} className="flex items-center gap-1 hover:text-brand-green transition-colors font-bold cursor-pointer">
               <Globe className="w-3 h-3" /> {currentLang === 'ka' ? 'EN' : 'KA'}
             </button>

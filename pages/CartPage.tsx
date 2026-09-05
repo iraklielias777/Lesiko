@@ -137,6 +137,7 @@ export const CartPage = () => {
                 </div>
               </div>
 
+              {settings.freeShippingThreshold > 0 && (
               <div className="mt-6 mb-6 flex items-center gap-2 text-xs bg-gray-50 border border-gray-100 rounded-xl p-3">
                 {awayFromFreeShipping > 0 ? (
                   <>
@@ -150,6 +151,7 @@ export const CartPage = () => {
                   </>
                 )}
               </div>
+              )}
 
               <Button
                 className="w-full shadow-xl shadow-brand-green/20"

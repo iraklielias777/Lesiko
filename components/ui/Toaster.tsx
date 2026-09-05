@@ -13,14 +13,17 @@ export const Toaster = () => {
   const { toasts, removeToast } = useToastStore();
 
   return (
-    <div className="fixed bottom-4 right-4 z-[200] flex flex-col gap-2 pointer-events-none">
+    // Below the bag drawer (z-150) on purpose: a notice must never sit on top
+    // of a control someone is trying to press. Width is capped so a long
+    // product name wraps instead of stretching the toast across the screen.
+    <div className="fixed bottom-4 right-4 z-[140] flex flex-col gap-2 pointer-events-none w-[min(420px,calc(100vw-2rem))]">
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="pointer-events-auto bg-white border border-gray-100 shadow-lg rounded-lg p-4 flex items-center gap-3 min-w-[300px] animate-slide-in-right"
+          className="pointer-events-auto bg-white border border-gray-100 shadow-lg rounded-lg p-4 flex items-center gap-3 w-full animate-slide-in-right"
         >
           {icons[toast.type]}
-          <p className="text-sm font-medium text-gray-800 flex-1">{toast.message}</p>
+          <p className="text-sm font-medium text-gray-800 flex-1 break-words">{toast.message}</p>
           <button 
             onClick={() => removeToast(toast.id)}
             className="text-gray-400 hover:text-gray-600"

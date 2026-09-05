@@ -57,10 +57,11 @@ export const useCartStore = create<CartState>()(
           const desired = (existingItem?.quantity || 0) + quantity;
           const nextQty = Math.min(desired, max);
 
+          // No "added" toast: the drawer opens with the item at the top, and a
+          // toast on top of the drawer only ever covered its checkout button.
           if (nextQty < desired) {
             addToast(i18n.t('cart.onlyInStock', { count: max, name: `${product.name}${variantName}` }));
           } else {
-            addToast(i18n.t('cart.addedToCart', { name: `${product.name}${variantName}` }));
             track('add_to_cart', {
               currency: useSettingsStore.getState().settings.currency || 'GEL',
               value: (variant?.price ?? product.price) * (nextQty - (existingItem?.quantity || 0)),
