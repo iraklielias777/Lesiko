@@ -77,8 +77,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 }));
 
-export const calculateTotals = (subtotal: number, settings: StoreSettings) => {
-  const shipping = subtotal >= settings.freeShippingThreshold ? 0 : settings.shippingRate;
+export const calculateTotals = (
+  subtotal: number,
+  settings: StoreSettings,
+  quotedFee?: number | null,
+) => {
+  const rate = quotedFee != null && Number.isFinite(quotedFee) ? quotedFee : settings.shippingRate;
+  const threshold = settings.freeShippingThreshold;
+  const shipping = threshold > 0 && subtotal >= threshold ? 0 : rate;
   const tax = subtotal * settings.taxRate;
   return { shipping, tax, total: subtotal + shipping + tax };
 };

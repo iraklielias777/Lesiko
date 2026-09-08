@@ -1,0 +1,39 @@
+{
+  "_comment": "Request/response for POST /v1/order. Body field names follow the webhook Order + Customer + Provider objects and the Delivery Button pickup/drop info. Status Draft so Flitt can charge before ReadyForPickup.",
+  "request": {
+    "Status": "Draft",
+    "DeliveryType": "ASAP",
+    "Channel": "DeliveryApi",
+    "ProviderId": 31,
+    "Comment": "Lesiko LK12345678",
+    "FromStreetName": "38 Iakob Gogebashvili St, Tbilisi, Georgia",
+    "FromCityName": "Tbilisi",
+    "FromLatitude": 41.703022188006344,
+    "FromLongitude": 44.78220031738281,
+    "FromAddressComment": "",
+    "ToStreetName": "15 Irakli Abashidze Street, Tbilisi, Georgia",
+    "ToCityName": "Tbilisi",
+    "ToLatitude": 41.7080523856428,
+    "ToLongitude": 44.77123544692993,
+    "ToAddressComment": "flat-61",
+    "AddressFrom": "38 Iakob Gogebashvili St, Tbilisi, Georgia",
+    "AddressTo": "15 Irakli Abashidze Street, Tbilisi, Georgia",
+    "ParcelDimensionId": null,
+    "Customer": {
+      "Name": "Nino Beridze",
+      "PhonePrefix": "995",
+      "PhoneNumber": "555123123"
+    }
+  },
+  "response": {
+    "httpStatusCode": 200,
+    "success": true,
+    "errors": [],
+    "order": {
+      "id": 1050567455,
+      "orderNo": "OD1050567455",
+      "status": "Draft",
+      "trackingUrl": "https://dashboard.quickshipper.app/track/OD1050567455"
+    }
+  }
+}

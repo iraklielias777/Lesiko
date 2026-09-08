@@ -143,7 +143,7 @@ Tbilisi: [1–2] working days. Other cities and regions: [2–5] working days. O
 The delivery charge, and the order value above which delivery is free, are shown in your bag and at checkout before you pay.
 
 ## Tracking
-Use Track your order with your order number, or open the order in your account, to see its status. We will also call you if the courier cannot reach you.
+Use Track your order with your order number and email. When a courier is assigned, a tracking link appears on the confirmation page, in your account, and on Track your order.
 
 ## If something is wrong
 If a parcel arrives damaged, or an item is missing, write to {email} within 3 days of delivery with your order number and a photo, and we will put it right.`,
@@ -157,7 +157,7 @@ If a parcel arrives damaged, or an item is missing, write to {email} within 3 da
 მიწოდების ღირებულება და თანხა, რომლის ზემოთაც მიწოდება უფასოა, ჩანს კალათაში და გადახდამდე, შეკვეთის გაფორმებისას.
 
 ## თვალყურის დევნება
-შეკვეთის სტატუსის სანახავად გამოიყენეთ „შეკვეთის თვალყური“ შეკვეთის ნომრით ან გახსენით შეკვეთა თქვენს ანგარიშში. თუ კურიერი ვერ დაგიკავშირდებათ, ჩვენ თავად დაგირეკავთ.
+შეკვეთის სტატუსის სანახავად გამოიყენეთ „შეკვეთის თვალყური“ შეკვეთის ნომრითა და ელ-ფოსტით. როცა კურიერი დაინიშნება, თვალყურის ბმული გამოჩნდება დადასტურების გვერდზე, თქვენს ანგარიშში და „შეკვეთის თვალყურზე“.
 
 ## თუ რამე არასწორია
 თუ ამანათი დაზიანებული მოვიდა ან რომელიმე ნივთი აკლია, მოგვწერეთ {email}-ზე მიწოდებიდან 3 დღის განმავლობაში, შეკვეთის ნომრითა და ფოტოთი, და ჩვენ გამოვასწორებთ.`

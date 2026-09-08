@@ -157,11 +157,32 @@ export interface Address {
   state: string;
   zip: string;
   country: string;
+  /** Dropoff pin, filled after a courier quote geocodes the typed address. */
+  lat?: number;
+  lng?: number;
 }
 
 export interface SavedAddress extends Address {
   id: string;
   isDefault: boolean;
+}
+
+export type ShippingQuoteSource = 'quickshipper' | 'fallback';
+
+/** Courier the shopper picked (or the flat-rate fallback). Stored on the order. */
+export interface ShippingQuote {
+  source: ShippingQuoteSource;
+  providerId?: number;
+  providerName?: string;
+  logoUrl?: string;
+  fee: number;
+  etaMinutes?: number;
+  parcelDimensionId?: number;
+  fromLat?: number;
+  fromLng?: number;
+  toLat?: number;
+  toLng?: number;
+  quotedAt: string;
 }
 
 export interface Order {
@@ -181,6 +202,13 @@ export interface Order {
   flittOrderId?: string;
   /** Flitt payment_id from the verified server callback. */
   flittPaymentId?: string;
+  shippingQuote?: ShippingQuote;
+  qsOrderId?: number;
+  qsOrderNo?: string;
+  qsStatus?: string;
+  qsTrackingUrl?: string;
+  qsDispatchedAt?: string;
+  qsWebhookAt?: string;
 }
 
 export interface StoreSettings {
@@ -198,6 +226,15 @@ export interface StoreSettings {
   defaultLanguage?: 'en' | 'ka';
   /** Google Analytics 4 measurement ID (G-…); analytics stay off while empty. */
   gaMeasurementId?: string;
+  pickupName?: string;
+  pickupPhone?: string;
+  pickupAddress?: string;
+  pickupCity?: string;
+  pickupLat?: number | '';
+  pickupLng?: number | '';
+  pickupComment?: string;
+  /** Default QuickShipper parcel id for providers that price by weight. */
+  parcelDimensionId?: number | '';
 }
 
 export type LegalPageKey = 'terms' | 'privacy' | 'delivery' | 'returns';

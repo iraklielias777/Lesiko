@@ -86,6 +86,7 @@ const { data: rpcResult, error: orderError } = await anon.rpc('create_pending_or
       address1: '1 Test Way', city: 'Tbilisi', state: 'TB', zip: '0100', country: 'GE',
     },
     subtotal: 45, shipping: 15, tax: 3.6, total: 63.6,
+    shippingQuote: { source: 'fallback', fee: 15, quotedAt: new Date().toISOString() },
   },
   p_items: [{
     productId: products?.[0]?.id,
@@ -130,6 +131,10 @@ const { data: adminOrders, error: adminOrdersError } = await admin
 check('admin reads orders with line items',
   !adminOrdersError && adminOrders?.some(o => o.id === orderId && o.order_items?.length > 0),
   adminOrdersError?.message);
+const smokeOrder = adminOrders?.find(o => o.id === orderId);
+check('RPC stored the shipping quote snapshot',
+  smokeOrder?.shipping_quote?.source === 'fallback' && Number(smokeOrder?.shipping_quote?.fee) === 15,
+  JSON.stringify(smokeOrder?.shipping_quote));
 
 const { data: allProfiles } = await admin.from('profiles').select('email, role');
 check('admin reads customer emails', allProfiles?.every(p => !!p.email),
@@ -508,6 +513,22 @@ await admin.from('site_content').upsert({
   key: 'store_settings',
   content: settingsBeforeSeo.content,
 });
+
+// -------------------------------------------------------------- delivery
+
+const quoteRes = await resilientFetch(`${URL_}/functions/v1/delivery/quote`, {
+  method: 'POST',
+  headers: {
+    apikey: KEY,
+    Authorization: `Bearer ${KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ address1: '1 Rustaveli Avenue', city: 'Tbilisi' }),
+});
+const quoteJson = await quoteRes.json().catch(() => ({}));
+check('delivery quote endpoint answers',
+  quoteRes.status < 500 && typeof quoteJson.configured === 'boolean',
+  `status=${quoteRes.status} ${JSON.stringify(quoteJson).slice(0, 180)}`);
 
 // ---------------------------------------------------------------- addresses
 

@@ -35,14 +35,15 @@ The store's address is `https://www.lesiko.ge` (`ORIGIN` below). The apex
 4. Optional but recommended before launch: migrate the project to Frankfurt
    (`eu-central-1`) — every request from Georgia is ~0.4 s against Sydney
    today. New project → dump/restore → storage copy → redeploy `media`,
-   `payments`, `seo` with their secrets → repoint the Vercel env vars → rerun
+   `payments`, `seo`, `delivery` with their secrets → repoint the Vercel env vars → rerun
    `scripts/smoke.mjs`.
 
 ## 3. Admin panel
 
-1. Settings: store name, support email, currency `GEL`, real tax rate,
-   delivery charge and free-delivery threshold, default language, and — when
-   you have one — the Google Analytics measurement ID (`G-…`).
+3. Settings: store name, support email, currency `GEL`, real tax rate,
+   delivery charge and free-delivery threshold, **dispatch origin** (pickup
+   street, city, coordinates, phone), default language, and — when you have
+   one — the Google Analytics measurement ID (`G-…`).
 2. SEO: site URL `ORIGIN`, share image, Google Search Console verification
    token.
 3. Content → Legal: replace every value in square brackets, read all four
@@ -72,8 +73,19 @@ test-mode purchase has been seen end to end on the dashboard.
 | Supabase → Authentication → URL configuration | Site URL | `https://www.lesiko.ge` | where email links land when no redirect is given |
 | Supabase → same | Redirect URLs | `https://www.lesiko.ge/**` | the password-reset link goes to `/reset-password`; the exact-root entry alone does not allow it |
 | Admin → SEO | Site URL | `https://www.lesiko.ge` | drives canonicals, sitemap, the preview-host redirect and Flitt's return URL |
+| Supabase → Edge Functions → Secrets | `QS_AUTH_URL` | sandbox `https://test-auth.quickshipper.ge`, then `https://auth.quickshipper.app` | QuickShipper OAuth |
+| Supabase → same | `QS_API_URL` | sandbox `https://delivery-test.quickshipper.ge`, then `https://delivery.quickshipper.app` | Delivery API |
+| Supabase → same | `QS_CLIENT_ID` / `QS_CLIENT_SECRET` | sandbox `DeliveryApiClient` / `DeliveryApiSecret` | Basic auth for `/connect/token`; production values come from QS |
+| Supabase → same | `QS_USERNAME` / `QS_PASSWORD` | merchant login | never Vercel, never `VITE_` |
+| Supabase → same | `QS_WEBHOOK_SECRET` | a long random string | webhook path is `/functions/v1/delivery/webhook/{secret}` |
+| Supabase → same | `GOOGLE_GEOCODING_KEY` | optional | typed checkout addresses; Nominatim is used if this is blank |
+| Admin → Settings | Dispatch origin | street, city, lat, lng, phone | pickup for `GET /v1/order/fees` and `POST /v1/order` |
 
-Nothing from Flitt ever goes on Vercel, and nothing else is needed: `SUPABASE_URL`,
+Ask QuickShipper to enable Delivery API on the merchant and **allowlist Supabase Edge egress IPs**. After secrets are set, an admin can `POST /functions/v1/delivery/setup-webhook` once (or run a dispatch from a paid test order). Keep quotes on sandbox URLs until a test paid order creates a Draft then ReadyForPickup job.
+
+The storefront CSP in `vercel.json` must stay free of QuickShipper script/style hosts — quotes, dispatch and webhooks are server-side only.
+
+Nothing from Flitt or QuickShipper ever goes on Vercel. `SUPABASE_URL`,
 `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected into the edge
 functions by Supabase itself. Changing a secret takes effect on the next
 function call; no redeploy.
@@ -92,7 +104,8 @@ approves without 3-D Secure. Source: docs.flitt.com/api/testing.
 ```bash
 node scripts/refresh-cache.mjs <admin-email> <admin-password>   # one-year cache headers on the old uploads
 node scripts/warm-images.mjs                                    # pre-warm the image ladder
-node scripts/smoke.mjs                                          # guest checkout, RPC guards, prerender parity
+node scripts/smoke.mjs <admin-email> <admin-password>   # guest checkout, RPC guards, prerender parity
+node scripts/capture-quickshipper.mjs                   # optional: overwrite QS fixtures from sandbox
 ```
 
 ## 7. Verify on the real domain
@@ -124,4 +137,7 @@ Then, by hand:
   appear on the admin dashboard as "client error" alerts — one per error per
   page per day, so a broken page shows up without flooding the list.
 - Paid, failed and suspicious payments are alerts from the payments function.
+- Courier dispatch failures, assigned-courier cancel blocks, and
+  `DeliveryFailed` / `Cancelled` webhooks are alerts from the `delivery`
+  function. The Flitt charge is never refunded automatically from those.
 - Analytics start the moment a measurement ID is saved in Settings.

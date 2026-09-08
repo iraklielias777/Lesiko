@@ -8,6 +8,7 @@ import { SEO } from '../components/seo/SEO';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useFormatPrice } from '../lib/format';
+import { TrackingLink } from '../components/order/TrackingLink';
 
 export const TrackOrderPage = () => {
   const { t } = useTranslation();
@@ -76,6 +77,10 @@ export const TrackOrderPage = () => {
             <p className="text-sm text-gray-600">
               {order.items?.length || 0} items · {fmt(order.total)}
             </p>
+            {order.shippingQuote?.providerName && (
+              <p className="text-sm text-gray-600">{t('checkout.courier')}: {order.shippingQuote.providerName}</p>
+            )}
+            <TrackingLink href={order.qsTrackingUrl} className="text-sm inline-block" />
             <Link
               to={`/order-confirmation?order=${order.id}`}
               className="inline-block text-sm font-bold text-brand-green hover:underline"

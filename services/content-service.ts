@@ -25,7 +25,15 @@ export const DEFAULT_STORE_SETTINGS: StoreSettings = {
   siteUrl: '',
   ogImage: '',
   defaultLanguage: 'en',
-  gaMeasurementId: ''
+  gaMeasurementId: '',
+  pickupName: '',
+  pickupPhone: '',
+  pickupAddress: '',
+  pickupCity: 'Tbilisi',
+  pickupLat: '',
+  pickupLng: '',
+  pickupComment: '',
+  parcelDimensionId: '',
 };
 
 // Every route the storefront can land on. The admin editor renders one card per

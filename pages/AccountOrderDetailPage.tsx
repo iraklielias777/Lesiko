@@ -11,6 +11,7 @@ import { useFormatPrice } from '../lib/format';
 import { Button } from '../components/ui/Button';
 import { useCartStore } from '../store/cart-store';
 import { useToastStore } from '../store/toast-store';
+import { TrackingLink } from '../components/order/TrackingLink';
 
 export const AccountOrderDetailPage = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -132,6 +133,10 @@ export const AccountOrderDetailPage = () => {
                 {order.shippingAddress?.city}, {order.shippingAddress?.state} {order.shippingAddress?.zip}<br />
                 {order.shippingAddress?.country}
               </p>
+              {order.shippingQuote?.providerName && (
+                <p className="text-sm text-gray-600 mt-3">{t('checkout.courier')}: {order.shippingQuote.providerName}</p>
+              )}
+              <TrackingLink href={order.qsTrackingUrl} className="text-sm inline-block mt-2" />
             </div>
           </div>
         )}

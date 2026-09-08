@@ -129,6 +129,23 @@ const loadStoreSettings = async (): Promise<{
   };
 };
 
+const invokeDelivery = async (
+  path: string,
+  body: Record<string, unknown>,
+): Promise<Record<string, unknown>> => {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/delivery${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, ...(json && typeof json === 'object' ? json as Record<string, unknown> : {}) };
+};
+
 /**
  * Mirror of lib/pricing.ts resolvePrice(): the amount charged must be the
  * amount the storefront showed. Keep the two in step. A variant with no price
@@ -188,10 +205,18 @@ const availableStock = (
   return Math.max(0, Number(product.inventory_quantity ?? 0));
 };
 
+class RepriceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RepriceError';
+  }
+}
+
 /**
  * Reprice order lines from live catalogue sell prices (sale `price`, not
- * compare_at), then recompute shipping/tax the same way as the storefront.
- * Rejects lines that exceed available stock.
+ * compare_at), then recompute shipping/tax. Shipping is the stored courier
+ * quote (re-checked live) or the flat rate fallback. Rejects lines that
+ * exceed available stock.
  */
 const repriceOrder = async (orderId: string): Promise<{
   subtotal: number;
@@ -257,8 +282,36 @@ const repriceOrder = async (orderId: string): Promise<{
   subtotal = Math.round(subtotal * 100) / 100;
 
   const settings = await loadStoreSettings();
-  const shipping =
-    subtotal >= settings.freeShippingThreshold ? 0 : settings.shippingRate;
+  const { data: orderRow } = await admin
+    .from('orders')
+    .select('shipping_quote')
+    .eq('id', orderId)
+    .maybeSingle();
+  const quote = (orderRow?.shipping_quote ?? null) as Record<string, unknown> | null;
+  const quotedFee = Number(quote?.fee);
+  const source = String(quote?.source || '');
+
+  let shipping = settings.shippingRate;
+  if (source === 'quickshipper' && Number.isFinite(quotedFee)) {
+    let check: Record<string, unknown>;
+    try {
+      check = await invokeDelivery('/requote', { orderId });
+    } catch (err) {
+      console.error('requote failed', err);
+      throw new RepriceError('Could not re-check shipping. Go back and pick a courier again.');
+    }
+    if (check.ok === false || check.error) {
+      throw new RepriceError(String(check.error || 'Shipping is no longer available for this address.'));
+    }
+    shipping = quotedFee;
+  } else if (Number.isFinite(quotedFee) && quotedFee >= 0) {
+    shipping = quotedFee;
+  }
+  if (settings.freeShippingThreshold > 0 && subtotal >= settings.freeShippingThreshold) {
+    shipping = 0;
+  }
+  shipping = Math.round(shipping * 100) / 100;
+
   const tax = Math.round(subtotal * settings.taxRate * 100) / 100;
   const total = Math.round((subtotal + shipping + tax) * 100) / 100;
 
@@ -344,7 +397,7 @@ const createToken = async (req: Request): Promise<Response> => {
     console.error('repriceOrder failed', err);
     await alert(
       err instanceof StockError ? 'checkout_stock_short' : 'checkout_reprice_failed',
-      err instanceof StockError ? 'warning' : 'critical',
+      err instanceof StockError || err instanceof RepriceError ? 'warning' : 'critical',
       err instanceof Error ? err.message : 'Could not reprice order',
       { orderId, orderNumber: order.order_number },
     );
@@ -578,6 +631,17 @@ const applyCallback = async (
         `Stock was not reduced for paid order ${summary?.order_number ?? orderId}`,
         { orderId, error: err instanceof Error ? err.message : String(err) });
     }
+    try {
+      const dispatched = await invokeDelivery('/dispatch', { orderId });
+      if (dispatched.ok === false && dispatched.error) {
+        console.error('delivery dispatch failed', dispatched);
+      }
+    } catch (err) {
+      console.error('delivery dispatch failed', err);
+      await alert('delivery_dispatch_failed', 'critical',
+        `Could not book a courier for paid order ${summary?.order_number ?? orderId}`,
+        { orderId, error: err instanceof Error ? err.message : String(err) });
+    }
   } else {
     await alert('payment_failed', 'info',
       `Payment ${orderStatusValue} for order ${summary?.order_number ?? orderId}`,
@@ -590,7 +654,8 @@ const applyCallback = async (
 const ORDER_DETAIL_SELECT = `
   id, order_number, customer_name, customer_email, shipping_address,
   payment_status, status, subtotal, shipping, tax, total, created_at,
-  flitt_order_id, flitt_payment_id,
+  flitt_order_id, flitt_payment_id, shipping_quote, qs_order_id, qs_order_no,
+  qs_status, qs_tracking_url, qs_dispatched_at, qs_webhook_at,
   order_items (id, product_id, product_name, variant_name, quantity, price, products (slug, images))
 `;
 
@@ -608,6 +673,13 @@ const serializeOrder = (order: any) => ({
   createdAt: order.created_at,
   flittOrderId: order.flitt_order_id,
   flittPaymentId: order.flitt_payment_id,
+  shippingQuote: order.shipping_quote || undefined,
+  qsOrderId: order.qs_order_id != null ? Number(order.qs_order_id) : undefined,
+  qsOrderNo: order.qs_order_no || undefined,
+  qsStatus: order.qs_status || undefined,
+  qsTrackingUrl: order.qs_tracking_url || undefined,
+  qsDispatchedAt: order.qs_dispatched_at || undefined,
+  qsWebhookAt: order.qs_webhook_at || undefined,
   items: (order.order_items || []).map((item: any) => ({
     id: item.id,
     quantity: item.quantity,

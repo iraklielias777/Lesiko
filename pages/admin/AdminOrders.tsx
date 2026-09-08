@@ -6,8 +6,11 @@ import { useAdminStore } from '../../store/admin-store';
 import { Button } from '../../components/ui/Button';
 import { Pagination, usePagination } from '../../components/admin/Pagination';
 import { Order } from '../../types';
+import { OrderService } from '../../services/order-service';
 import { useFormatPrice } from '../../lib/format';
 import { useToastStore } from '../../store/toast-store';
+import { TrackingLink } from '../../components/order/TrackingLink';
+import { DeliveryService } from '../../services/delivery-service';
 
 const paymentBadge = (status: Order['paymentStatus']) => {
   if (status === 'paid') return 'bg-green-100 text-green-700';
@@ -222,6 +225,63 @@ export const AdminOrders = () => {
                           <p className="text-xs text-gray-400 mt-1 font-mono">
                             Flitt payment: {selectedOrder.flittPaymentId}
                           </p>
+                        )}
+                        {(selectedOrder.qsStatus || selectedOrder.shippingQuote?.providerName) && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            {selectedOrder.shippingQuote?.providerName || t('checkout.courier')}
+                            {selectedOrder.qsStatus ? ` · ${selectedOrder.qsStatus}` : ''}
+                            {selectedOrder.qsOrderNo ? ` · ${selectedOrder.qsOrderNo}` : ''}
+                          </p>
+                        )}
+                        {selectedOrder.qsTrackingUrl && (
+                          <p className="mt-1">
+                            <TrackingLink href={selectedOrder.qsTrackingUrl} className="text-xs" />
+                          </p>
+                        )}
+                        {selectedOrder.qsWebhookAt && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Last courier update: {new Date(selectedOrder.qsWebhookAt).toLocaleString()}
+                          </p>
+                        )}
+                        {selectedOrder.paymentStatus === 'paid'
+                          && selectedOrder.shippingQuote?.source === 'quickshipper'
+                          && !selectedOrder.qsOrderId && (
+                          <button
+                            type="button"
+                            className="mt-2 text-xs font-bold text-brand-green hover:underline"
+                            onClick={async () => {
+                              try {
+                                await DeliveryService.dispatch(selectedOrder.id);
+                                const next = await OrderService.getOrderById(selectedOrder.id);
+                                if (next) setSelectedOrder(next);
+                                await fetchData();
+                                addToast('Courier booked');
+                              } catch (e: any) {
+                                addToast(e?.message || 'Could not book courier', 'error');
+                              }
+                            }}
+                          >
+                            Retry dispatch
+                          </button>
+                        )}
+                        {selectedOrder.qsOrderId && (
+                          <button
+                            type="button"
+                            className="mt-2 ml-3 text-xs font-bold text-gray-500 hover:underline"
+                            onClick={async () => {
+                              try {
+                                await DeliveryService.refresh(selectedOrder.id);
+                                const next = await OrderService.getOrderById(selectedOrder.id);
+                                if (next) setSelectedOrder(next);
+                                await fetchData();
+                                addToast('Courier status updated');
+                              } catch (e: any) {
+                                addToast(e?.message || 'Could not refresh courier status', 'error');
+                              }
+                            }}
+                          >
+                            Refresh courier status
+                          </button>
                         )}
                     </div>
                     <button onClick={() => setSelectedOrder(null)}><X className="w-5 h-5 text-gray-500" /></button>

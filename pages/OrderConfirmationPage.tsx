@@ -12,6 +12,7 @@ import { useCartStore } from '../store/cart-store';
 import { useAuthStore } from '../store/auth-store';
 import { useSettingsStore } from '../store/settings-store';
 import { itemsOfOrder, track } from '../lib/analytics';
+import { TrackingLink } from '../components/order/TrackingLink';
 
 // Once per order, even if the page is reloaded while it is still polling.
 const reportPurchase = (order: Order) => {
@@ -67,8 +68,15 @@ export const OrderConfirmationPage = () => {
 
         if (next.paymentStatus === 'paid') {
           clearCart();
-          PaymentService.clearPendingCheckout();
           reportPurchase(next);
+          const waitingOnCourier =
+            next.shippingQuote?.source === 'quickshipper' && !next.qsTrackingUrl && attempts < 8;
+          if (waitingOnCourier) {
+            attempts += 1;
+            window.setTimeout(tick, 2000);
+            return;
+          }
+          PaymentService.clearPendingCheckout();
           setPolling(false);
           return;
         }
@@ -207,6 +215,12 @@ export const OrderConfirmationPage = () => {
               </p>
             </div>
             <div className="border-t border-gray-100 pt-4 mt-4">
+              {order.shippingQuote?.providerName && (
+                <p className="text-sm text-gray-600 mb-2">
+                  {t('checkout.courier')}: {order.shippingQuote.providerName}
+                </p>
+              )}
+              <TrackingLink href={order.qsTrackingUrl} className="text-sm inline-block mb-3" />
               <div className="flex justify-between items-center">
                 <span className="font-medium text-gray-900">
                   {status === 'paid' ? t('checkout.totalPaid') : t('common.total')}

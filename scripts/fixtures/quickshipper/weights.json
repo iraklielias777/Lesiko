@@ -1,0 +1,14 @@
+{
+  "_comment": "GET /v1/Order/weights for a provider whose fees row has HasWeight=true. ParcelDimensionId is sent on POST /v1/order.",
+  "httpStatusCode": 200,
+  "success": true,
+  "errors": [],
+  "weights": [
+    {
+      "parcelDimensionId": 1,
+      "name": "Small",
+      "maxWeightKg": 2,
+      "fee": 8.5
+    }
+  ]
+}

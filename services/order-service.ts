@@ -38,6 +38,13 @@ const mapOrder = (o: any): Order => ({
     createdAt: new Date(o.created_at).toISOString().split('T')[0],
     flittOrderId: o.flitt_order_id || undefined,
     flittPaymentId: o.flitt_payment_id || undefined,
+    shippingQuote: o.shipping_quote || undefined,
+    qsOrderId: o.qs_order_id != null ? Number(o.qs_order_id) : undefined,
+    qsOrderNo: o.qs_order_no || undefined,
+    qsStatus: o.qs_status || undefined,
+    qsTrackingUrl: o.qs_tracking_url || undefined,
+    qsDispatchedAt: o.qs_dispatched_at || undefined,
+    qsWebhookAt: o.qs_webhook_at || undefined,
 });
 
 export const OrderService = {
@@ -106,6 +113,7 @@ export const OrderService = {
                 shipping: order.shipping,
                 tax: order.tax,
                 total: order.total,
+                shippingQuote: order.shippingQuote,
             },
             p_items: order.items.map(item => ({
                 productId: item.product.id,

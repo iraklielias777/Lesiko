@@ -10,7 +10,8 @@ import { Button } from '../components/ui/Button';
 import { OrderSummary } from '../components/checkout/OrderSummary';
 import { cartCheckoutFingerprint, PaymentService } from '../services/payment-service';
 import { AddressService } from '../services/address-service';
-import { Order, SavedAddress } from '../types';
+import { CourierQuoteOption, DeliveryService, QuoteResponse } from '../services/delivery-service';
+import { Address, Order, SavedAddress, ShippingQuote } from '../types';
 import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
 import { splitWordmark } from '../lib/wordmark';
@@ -36,6 +37,10 @@ export const CheckoutPage = () => {
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('new');
   const [saveAddress, setSaveAddress] = useState(false);
+  const [quoting, setQuoting] = useState(false);
+  const [quoteResult, setQuoteResult] = useState<QuoteResponse | null>(null);
+  const [selectedCourier, setSelectedCourier] = useState<CourierQuoteOption | null>(null);
+  const [quoteNotice, setQuoteNotice] = useState<string | null>(null);
   const flittRootRef = useRef<HTMLDivElement>(null);
   const mountedTokenRef = useRef<string | null>(null);
   const prefilledRef = useRef(false);
@@ -51,13 +56,17 @@ export const CheckoutPage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
-  const [address, setAddress] = useState({
+  const [address, setAddress] = useState<Address>({
     email: '', firstName: '', lastName: '', phone: '', address1: '', address2: '', city: '', state: '', zip: '', country: 'GE'
   });
 
   const subtotal = getSubtotal();
-  const { shipping, tax, total } = calculateTotals(subtotal, settings);
+  const quotedFee = selectedCourier?.fee
+    ?? (quoteResult && !quoteResult.configured ? quoteResult.fallbackFee : undefined)
+    ?? (quoteResult && quoteResult.quotes.length === 0 ? quoteResult.fallbackFee : undefined);
+  const { shipping, tax, total } = calculateTotals(subtotal, settings, quotedFee ?? null);
   const displayTotal = chargedTotal ?? total;
+  const needsCourierPick = !!quoteResult?.configured && quoteResult.quotes.length > 0 && !selectedCourier;
   const [wmBefore, wmAccent] = splitWordmark(settings.storeName || 'LesiKo');
 
   // Refresh sale/catalogue prices as soon as checkout opens.
@@ -111,8 +120,21 @@ export const CheckoutPage = () => {
     }
   }, [items, navigate, step, refreshing]);
 
+  const clearQuotes = () => {
+    setQuoteResult(null);
+    setSelectedCourier(null);
+    setQuoteNotice(null);
+    setAddress(prev => {
+      const next = { ...prev };
+      delete next.lat;
+      delete next.lng;
+      return next;
+    });
+  };
+
   const applySavedAddress = (id: string) => {
     setSelectedAddressId(id);
+    clearQuotes();
     if (id === 'new') {
       setAddress((prev) => ({
         ...prev,
@@ -145,8 +167,62 @@ export const CheckoutPage = () => {
     });
   };
 
+  const lookupCouriers = async (): Promise<QuoteResponse | null> => {
+    setQuoting(true);
+    setQuoteNotice(null);
+    setSelectedCourier(null);
+    setError(null);
+    try {
+      const result = await DeliveryService.quote({
+        address1: address.address1,
+        address2: address.address2,
+        city: address.city,
+        lat: address.lat,
+        lng: address.lng,
+      });
+      setQuoteResult(result);
+      if (result.lat != null && result.lng != null) {
+        setAddress(prev => ({ ...prev, lat: result.lat, lng: result.lng }));
+      }
+      if (result.error) {
+        setQuoteNotice(
+          result.errorCode === 'address_not_found' ? t('checkout.addressNotFound') : result.error,
+        );
+      }
+      if (result.configured && result.quotes.length === 0 && !result.error) {
+        setQuoteNotice(t('checkout.deliveryFallback', { amount: fmt(result.fallbackFee ?? settings.shippingRate) }));
+      }
+      if (!result.configured) {
+        setQuoteNotice(t('checkout.deliveryFallback', { amount: fmt(result.fallbackFee ?? settings.shippingRate) }));
+      }
+      return result;
+    } catch (err: any) {
+      const fallback: QuoteResponse = { configured: false, quotes: [], fallbackFee: settings.shippingRate };
+      setQuoteResult(fallback);
+      setQuoteNotice(err?.message || t('checkout.deliveryFallback', { amount: fmt(settings.shippingRate) }));
+      return fallback;
+    } finally {
+      setQuoting(false);
+    }
+  };
+
   const handleShippingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let result = quoteResult;
+    if (!result) {
+      result = await lookupCouriers();
+      if (!result) return;
+    }
+    if (result.errorCode === 'address_not_found' || (result.error && result.configured && !(result.quotes && result.quotes.length))) {
+      setQuoteNotice(
+        result.errorCode === 'address_not_found' ? t('checkout.addressNotFound') : result.error,
+      );
+      return;
+    }
+    if (result.configured && result.quotes.length > 0 && !selectedCourier) {
+      setQuoteNotice(t('checkout.pickCourierHint'));
+      return;
+    }
     if (isAuthenticated && user && saveAddress && selectedAddressId === 'new') {
       try {
         await AddressService.addAddress(user.id, { ...address, email: user.email }, savedAddresses.length === 0);
@@ -164,7 +240,11 @@ export const CheckoutPage = () => {
     if (mountedTokenRef.current) return;
 
     let cancelled = false;
-    const fingerprint = cartCheckoutFingerprint(items, address);
+    const fingerprint = cartCheckoutFingerprint(
+      items,
+      address,
+      selectedCourier ? String(selectedCourier.providerId) : 'fallback',
+    );
 
     const boot = async () => {
       setIsLoading(true);
@@ -172,6 +252,17 @@ export const CheckoutPage = () => {
       try {
         const reuseOrderId = PaymentService.getReusablePendingOrderId(fingerprint);
         const orderNumber = `LK${Date.now().toString().slice(-8)}`;
+        const coordsReady = quoteResult?.lat != null && quoteResult?.lng != null
+          && quoteResult.fromLat != null && quoteResult.fromLng != null;
+        const shippingQuote: ShippingQuote = selectedCourier && coordsReady
+          ? DeliveryService.toSnapshot(selectedCourier, {
+              lat: quoteResult.lat!,
+              lng: quoteResult.lng!,
+              fromLat: quoteResult.fromLat!,
+              fromLng: quoteResult.fromLng!,
+            })
+          : DeliveryService.fallbackSnapshot(quotedFee ?? settings.shippingRate);
+
         const newOrder: Order = {
           id: crypto.randomUUID(),
           orderNumber,
@@ -186,6 +277,7 @@ export const CheckoutPage = () => {
           total,
           createdAt: new Date().toISOString().split('T')[0],
           flittOrderId: orderNumber,
+          shippingQuote,
         };
 
         await PaymentService.loadFlittAssets();
@@ -374,7 +466,7 @@ export const CheckoutPage = () => {
                       type="text" required
                       className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                       value={address.address1}
-                      onChange={(e) => setAddress({ ...address, address1: e.target.value })}
+                      onChange={(e) => { clearQuotes(); setAddress({ ...address, address1: e.target.value }); }}
                     />
                   </div>
 
@@ -384,7 +476,7 @@ export const CheckoutPage = () => {
                       type="text"
                       className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                       value={address.address2}
-                      onChange={(e) => setAddress({ ...address, address2: e.target.value })}
+                      onChange={(e) => { clearQuotes(); setAddress({ ...address, address2: e.target.value }); }}
                     />
                   </div>
 
@@ -404,7 +496,7 @@ export const CheckoutPage = () => {
                         type="text" required
                         className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-brand-green outline-none"
                         value={address.city}
-                        onChange={(e) => setAddress({ ...address, city: e.target.value })}
+                        onChange={(e) => { clearQuotes(); setAddress({ ...address, city: e.target.value }); }}
                       />
                     </div>
                     <div className="col-span-1">
@@ -430,10 +522,62 @@ export const CheckoutPage = () => {
                   </label>
                 )}
 
-                <div className="mt-8 flex justify-end">
-                  <Button type="submit" size="lg" disabled={refreshing || items.length === 0}>
-                    {t('checkout.continueToPayment')}
-                  </Button>
+                <div className="mt-8 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">{t('checkout.pickCourier')}</h3>
+                    {quoteNotice && (
+                      <p className="text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-3">{quoteNotice}</p>
+                    )}
+                    {quoteResult?.quotes && quoteResult.quotes.length > 0 && (
+                      <div className="space-y-2">
+                        {quoteResult.quotes.map(option => {
+                          const selected = selectedCourier?.providerId === option.providerId;
+                          return (
+                            <label
+                              key={option.providerId}
+                              className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer ${
+                                selected ? 'border-brand-green bg-brand-green/5 ring-1 ring-brand-green' : 'border-gray-200 hover:border-gray-300'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name="courier"
+                                className="accent-brand-green"
+                                checked={selected}
+                                onChange={() => setSelectedCourier(option)}
+                              />
+                              {option.logoUrl ? (
+                                <img src={option.logoUrl} alt="" className="w-8 h-8 object-contain" />
+                              ) : (
+                                <span className="w-8 h-8 rounded-full bg-gray-100" />
+                              )}
+                              <span className="flex-1 font-medium text-sm text-gray-900">
+                                {option.providerName}
+                                {option.etaMinutes ? (
+                                  <span className="block text-xs text-gray-400 font-normal">{t('checkout.etaMinutes', { count: option.etaMinutes })}</span>
+                                ) : null}
+                              </span>
+                              <span className="font-heading font-bold text-sm">{fmt(option.fee)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      type="submit"
+                      size="lg"
+                      disabled={refreshing || items.length === 0 || quoting || needsCourierPick}
+                    >
+                      {quoting
+                        ? t('checkout.checkingDelivery')
+                        : !quoteResult
+                          ? t('checkout.checkDelivery')
+                          : t('checkout.continueToPayment')}
+                    </Button>
+                  </div>
                 </div>
               </form>
             )}

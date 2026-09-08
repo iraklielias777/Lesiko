@@ -214,7 +214,37 @@ export const AdminSettings = () => {
                     onChange={e => handleChange('freeShippingThreshold', Number(e.target.value))}
                 />
             </div>
-            <p className="text-xs text-gray-400">These drive the cart drawer progress bar and the totals on the checkout page. Currency accepts an ISO code such as USD, EUR or GEL.</p>
+            <p className="text-xs text-gray-400">These drive the cart drawer progress bar and the totals on the checkout page. Currency accepts an ISO code such as USD, EUR or GEL. When QuickShipper is connected, checkout shows live courier fees instead of the flat shipping rate — the flat rate is the fallback if quotes are down. Free shipping over a threshold still zeros what the shopper pays; Lesiko still books the courier.</p>
+
+            <h3 className="font-heading font-bold text-lg border-b border-gray-100 pb-2 pt-4">Dispatch origin</h3>
+            <p className="text-xs text-gray-400 -mt-2">Warehouse the courier picks up from. Latitude and longitude are required for live quotes; paste them from a map pin if you know them, otherwise the street + city is geocoded.</p>
+            <div className="grid md:grid-cols-2 gap-4">
+                <Input label="Pickup name" value={formData.pickupName || ''} onChange={e => handleChange('pickupName', e.target.value)} />
+                <Input label="Pickup phone" value={formData.pickupPhone || ''} onChange={e => handleChange('pickupPhone', e.target.value)} />
+                <div className="md:col-span-2">
+                    <Input label="Pickup street address" value={formData.pickupAddress || ''} onChange={e => handleChange('pickupAddress', e.target.value)} />
+                </div>
+                <Input label="Pickup city" value={formData.pickupCity || ''} onChange={e => handleChange('pickupCity', e.target.value)} />
+                <Input label="Apartment / comment" value={formData.pickupComment || ''} onChange={e => handleChange('pickupComment', e.target.value)} />
+                <Input
+                    label="Latitude"
+                    type="number" step="0.000001"
+                    value={formData.pickupLat === '' || formData.pickupLat == null ? '' : formData.pickupLat}
+                    onChange={e => handleChange('pickupLat', e.target.value === '' ? '' : Number(e.target.value))}
+                />
+                <Input
+                    label="Longitude"
+                    type="number" step="0.000001"
+                    value={formData.pickupLng === '' || formData.pickupLng == null ? '' : formData.pickupLng}
+                    onChange={e => handleChange('pickupLng', e.target.value === '' ? '' : Number(e.target.value))}
+                />
+                <Input
+                    label="Default parcel dimension id"
+                    type="number" step="1" min="0"
+                    value={formData.parcelDimensionId === '' || formData.parcelDimensionId == null ? '' : formData.parcelDimensionId}
+                    onChange={e => handleChange('parcelDimensionId', e.target.value === '' ? '' : Number(e.target.value))}
+                />
+            </div>
 
             <h3 className="font-heading font-bold text-lg border-b border-gray-100 pb-2 pt-4">Storefront</h3>
             <div className="grid md:grid-cols-2 gap-4">

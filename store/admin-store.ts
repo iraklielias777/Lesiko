@@ -6,6 +6,7 @@ import { CategoryService } from '../services/category-service';
 import { BrandService } from '../services/brand-service';
 import { ContentService, DEFAULT_STORE_SETTINGS } from '../services/content-service';
 import { OrderService } from '../services/order-service';
+import { DeliveryService } from '../services/delivery-service';
 import { supabase } from '../lib/supabase';
 import { invalidateCategories } from '../lib/use-categories';
 import { useSettingsStore } from './settings-store';
@@ -160,6 +161,13 @@ export const useAdminStore = create<AdminState>((set, get) => ({
 
   updateOrderStatus: async (orderId, status) => {
     await OrderService.updateStatus(orderId, status);
+    if (status === 'Cancelled') {
+      try {
+        await DeliveryService.cancel(orderId);
+      } catch (err) {
+        console.warn('QuickShipper cancel', err);
+      }
+    }
     set((state) => ({
       orders: state.orders.map(o => o.id === orderId ? { ...o, status } : o)
     }));

@@ -1,0 +1,12 @@
+{
+  "_comment": "POST /v1/order/status. Used to lift Draft → ReadyForPickup after Flitt paid, and Cancelled while no courier is assigned.",
+  "request": {
+    "OrderId": 1050567455,
+    "Status": "ReadyForPickup"
+  },
+  "response": {
+    "httpStatusCode": 200,
+    "success": true,
+    "errors": []
+  }
+}

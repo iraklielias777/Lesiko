@@ -112,6 +112,7 @@ async function invokePayments<T>(
 export function cartCheckoutFingerprint(
   items: CartItem[],
   address: { email: string; firstName: string; lastName: string; address1: string; city: string; zip: string; country: string; phone?: string },
+  providerKey = '',
 ): string {
   const cart = items
     .map((item) => ({
@@ -125,6 +126,7 @@ export function cartCheckoutFingerprint(
     email: address.email.trim().toLowerCase(),
     name: `${address.firstName} ${address.lastName}`.trim().toLowerCase(),
     line: [address.address1, address.city, address.zip, address.country].join('|').toLowerCase(),
+    courier: providerKey,
     cart,
   });
 }

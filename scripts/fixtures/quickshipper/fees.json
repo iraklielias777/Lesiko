@@ -1,0 +1,19 @@
+{
+  "_comment": "GET /v1/order/fees. Query names match the documented example (FromStreetName, FromCityName, plus lat/lng). Provider fields match the webhook Provider object plus HasWeight from the weights endpoint note.",
+  "httpStatusCode": 200,
+  "userMessage": "Operation Completed",
+  "developerMessage": "Operation Completed",
+  "success": true,
+  "errors": [],
+  "providers": [
+    {
+      "providerId": 31,
+      "providerName": "Tb Delivery",
+      "logoUrl": null,
+      "fee": 8.5,
+      "serviceFee": 8.5,
+      "hasWeight": false,
+      "approximateDeliveryMin": 45
+    }
+  ]
+}

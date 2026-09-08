@@ -1,0 +1,37 @@
+{
+  "OrderId": 1050567455,
+  "Status": "Delivered",
+  "Order": {
+    "Id": 1050567455,
+    "Status": "Delivered",
+    "ApproximateDeliveryMin": 5,
+    "OrderNo": "OD1050567455",
+    "OrderPrice": 0.27,
+    "ServiceFee": 0.27,
+    "DeliveryType": "ASAP",
+    "ToAddressComment": "flat-61",
+    "FromAddressComment": "-",
+    "AddressFrom": "Tbilisi",
+    "AddressTo": "T'bilisi",
+    "FromLongitude": 44.830949,
+    "FromLatitude": 41.779457,
+    "ToLongitude": 44.82286171301573,
+    "ToLatitude": 41.77588280970263,
+    "Distance": 1.72,
+    "Comment": "Lesiko LK12345678",
+    "TrackingUrl": "https://dashboard.quickshipper.app/track/OD1050567455",
+    "Channel": "DeliveryApi"
+  },
+  "Customer": {
+    "Name": "Christy",
+    "PhoneNumber": "REDACTED",
+    "PhonePrefix": "+995"
+  },
+  "Provider": {
+    "ProviderId": 31,
+    "ProviderName": "Tb Delivery",
+    "LogoUrl": null,
+    "Note": null
+  },
+  "OrderCourierModel": null
+}
