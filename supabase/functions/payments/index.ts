@@ -12,7 +12,9 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
-import { WhisperrEvents } from '../../../whisperr-events.ts';
+import { createOrderWhisperrTracker, resolveOrderCustomerId } from '../_shared/whisperr.ts';
+
+declare const EdgeRuntime: { waitUntil(task: Promise<unknown>): void };
 
 const encodeHex = (bytes: Uint8Array) =>
   Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -27,6 +29,12 @@ const FLITT_API = 'https://pay.flitt.com/api/checkout/token';
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
+});
+
+const trackOrder = createOrderWhisperrTracker({
+  apiKey: Deno.env.get('WHISPERR_INGESTION_API_KEY'),
+  resolveCustomerId: (orderId) => resolveOrderCustomerId(admin, orderId),
+  waitUntil: (task) => EdgeRuntime.waitUntil(task),
 });
 
 type Severity = 'info' | 'warning' | 'critical';
@@ -405,11 +413,11 @@ const createToken = async (req: Request): Promise<Response> => {
     if (err instanceof StockError) {
       // Stock ran short during repricing, so no payment token is minted and the
       // shopper is stopped at checkout.
-      WhisperrEvents.checkoutBlockedByStockShort({
+      trackOrder(orderId, (events) => events.checkoutBlockedByStockShort({
         orderId,
         orderNumber: order.order_number,
         blockReason: 'stock_short',
-      });
+      }));
     }
     const status = err instanceof StockError ? 409 : 400;
     return json({
@@ -620,7 +628,7 @@ const applyCallback = async (
   const update: Record<string, unknown> = { payment_status: paymentStatus };
   if (paymentId) update.flitt_payment_id = paymentId;
 
-  await admin.from('orders').update(update).eq('id', orderId);
+  const { error: paymentUpdateError } = await admin.from('orders').update(update).eq('id', orderId);
 
   const { data: summary } = await admin
     .from('orders')
@@ -630,11 +638,13 @@ const applyCallback = async (
 
   if (paymentStatus === 'paid') {
     // Verified gateway approval, already written to the order row.
-    WhisperrEvents.orderPaidConfirmed({
-      orderId,
-      paymentId,
-      gatewayOrderStatus: orderStatusValue,
-    });
+    if (!paymentUpdateError) {
+      trackOrder(orderId, (events) => events.orderPaidConfirmed({
+        orderId,
+        paymentId: paymentId ?? '',
+        gatewayOrderStatus: orderStatusValue,
+      }));
+    }
     // Until email is wired up this is how the merchant learns a sale happened.
     await alert('order_paid', 'info',
       `Order ${summary?.order_number ?? orderId} paid — ${summary?.total ?? '?'} by ${summary?.customer_email ?? 'unknown'}`,

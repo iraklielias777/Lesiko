@@ -26,7 +26,13 @@ function emit(event: string, payload?: Record<string, WhisperrPayloadValue>): vo
   }
 }
 
-export const WhisperrEvents = {
+// Server handlers need a per-call sender; a browser's module-global binding
+// cannot initialize a separate Edge Function or carry its customer's identity.
+export function createWhisperrEvents(client: WhisperrClientLike) {
+  const emit = (event: string, payload?: Record<string, WhisperrPayloadValue>) => {
+    client.track(event, payload);
+  };
+  return {
   /** order_id: order identifier */
   /** payment_status: confirmed payment status */
   paymentDeclined(payload: { orderId: WhisperrPayloadValue; paymentStatus: WhisperrPayloadValue }): void {
@@ -358,4 +364,7 @@ export const WhisperrEvents = {
     const { orderId, orderNumber, blockReason } = payload;
     emit("checkout_blocked_by_stock_short", { "order_id": orderId, "order_number": orderNumber, "block_reason": blockReason });
   },
-};
+  };
+}
+
+export const WhisperrEvents = createWhisperrEvents({ track: emit });

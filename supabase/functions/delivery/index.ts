@@ -26,7 +26,9 @@ import {
   registerWebhook,
   setOrderStatus,
 } from './qs.ts';
-import { WhisperrEvents } from '../../../whisperr-events.ts';
+import { createOrderWhisperrTracker, resolveOrderCustomerId } from '../_shared/whisperr.ts';
+
+declare const EdgeRuntime: { waitUntil(task: Promise<unknown>): void };
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -36,6 +38,12 @@ const FEE_SLACK = 0.5;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
+});
+
+const trackOrder = createOrderWhisperrTracker({
+  apiKey: Deno.env.get('WHISPERR_INGESTION_API_KEY'),
+  resolveCustomerId: (orderId) => resolveOrderCustomerId(admin, orderId),
+  waitUntil: (task) => EdgeRuntime.waitUntil(task),
 });
 
 type Severity = 'info' | 'warning' | 'critical';
@@ -321,12 +329,12 @@ const handleRequote = async (req: Request): Promise<Response> => {
     if (!live) {
       // The stored courier vanished from the live quote, so payment cannot proceed
       // until the shopper picks a delivery option again.
-      WhisperrEvents.checkoutBlockedByStockOrReprice({
+      trackOrder(orderId, (events) => events.checkoutBlockedByStockOrReprice({
         blockType: 'courier_unavailable',
         quoteSource: quote.source,
         storedFee: quote.fee,
-        liveFee: null,
-      });
+        liveFee: '',
+      }));
       return json({
         source: 'quickshipper',
         fee: quote.fee,
@@ -339,12 +347,12 @@ const handleRequote = async (req: Request): Promise<Response> => {
     if (delta > FEE_SLACK) {
       // Live courier fee drifted past the tolerance, so checkout is blocked until
       // delivery is chosen again.
-      WhisperrEvents.checkoutBlockedByStockOrReprice({
+      trackOrder(orderId, (events) => events.checkoutBlockedByStockOrReprice({
         blockType: 'delivery_fee_changed',
         quoteSource: quote.source,
         storedFee: quote.fee,
         liveFee: live.fee,
-      });
+      }));
     }
     return json({
       source: 'quickshipper',
@@ -418,7 +426,7 @@ const dispatchOrder = async (orderId: string): Promise<{ ok: boolean; error?: st
     }
 
     const mapped = lesikoStatusFor(status) || 'Processing';
-    await admin.from('orders').update({
+    const { error: dispatchUpdateError } = await admin.from('orders').update({
       qs_order_id: created.id,
       qs_order_no: created.orderNo || null,
       qs_status: status,
@@ -428,22 +436,24 @@ const dispatchOrder = async (orderId: string): Promise<{ ok: boolean; error?: st
     }).eq('id', orderId);
 
     // Courier job exists and the paid order is stamped as dispatched.
-    WhisperrEvents.courierShipmentBooked({
-      orderId,
-      courierShipmentId: created.id,
-      courierStatus: status,
-      orderStatus: mapped,
-    });
+    if (!dispatchUpdateError) {
+      trackOrder(orderId, (events) => events.courierShipmentBooked({
+        orderId,
+        courierShipmentId: created.id,
+        courierStatus: status,
+        orderStatus: mapped,
+      }));
+    }
 
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('dispatch failed', err);
     // Confirmed booking failure on an already-paid order.
-    WhisperrEvents.courierBookingFailedAfterPayment({
+    trackOrder(orderId, (events) => events.courierBookingFailedAfterPayment({
       orderId,
       failureCategory: err instanceof QsError ? 'courier_api_error' : 'unexpected_error',
-    });
+    }));
     await alert('delivery_dispatch_failed', 'critical',
       `Could not book a courier for paid order ${order.order_number}`,
       { orderId, orderNumber: order.order_number, error: message });
@@ -560,40 +570,40 @@ const handleWebhook = async (req: Request, secret: string): Promise<Response> =>
   if (typeof tracking === 'string' && tracking) update.qs_tracking_url = tracking;
   if (mapped) update.status = mapped;
 
-  await admin.from('orders').update(update).eq('id', order.id);
+  const { error: webhookUpdateError } = await admin.from('orders').update(update).eq('id', order.id);
 
   // Fulfilment milestones, deduplicated against repeated webhook deliveries by
   // comparing with the fulfilment status the order carried before this update.
-  if (mapped === 'Shipped' && order.status !== 'Shipped') {
-    WhisperrEvents.orderShipped({
+  if (!webhookUpdateError && mapped === 'Shipped' && order.status !== 'Shipped') {
+    trackOrder(order.id, (events) => events.orderShipped({
       orderId: order.id,
       courierShipmentId: qsId,
       courierStatus: qsStatus,
       orderStatus: mapped,
-    });
-  } else if (mapped === 'Delivered' && order.status !== 'Delivered') {
-    WhisperrEvents.orderDelivered({
+    }));
+  } else if (!webhookUpdateError && mapped === 'Delivered' && order.status !== 'Delivered') {
+    trackOrder(order.id, (events) => events.orderDelivered({
       orderId: order.id,
       courierShipmentId: qsId,
       courierStatus: qsStatus,
       orderStatus: mapped,
-    });
+    }));
   }
 
-  if (qsStatus === 'DeliveryFailed' && order.qs_status !== 'DeliveryFailed') {
-    WhisperrEvents.deliveryFailedOrCancelled({
+  if (!webhookUpdateError && qsStatus === 'DeliveryFailed' && order.qs_status !== 'DeliveryFailed') {
+    trackOrder(order.id, (events) => events.deliveryFailedOrCancelled({
       orderId: order.id,
       courierShipmentId: qsId,
       deliveryOutcome: 'delivery_failed',
       courierStatus: qsStatus,
-    });
-  } else if (qsStatus === 'Cancelled' && order.status !== 'Cancelled') {
-    WhisperrEvents.deliveryFailedOrCancelled({
+    }));
+  } else if (!webhookUpdateError && qsStatus === 'Cancelled' && order.status !== 'Cancelled') {
+    trackOrder(order.id, (events) => events.deliveryFailedOrCancelled({
       orderId: order.id,
       courierShipmentId: qsId,
       deliveryOutcome: 'cancelled',
       courierStatus: qsStatus,
-    });
+    }));
   }
 
   if (qsStatus === 'DeliveryFailed') {
