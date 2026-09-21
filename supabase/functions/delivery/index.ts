@@ -26,6 +26,7 @@ import {
   registerWebhook,
   setOrderStatus,
 } from './qs.ts';
+import { WhisperrEvents } from '../../../whisperr-events.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -318,6 +319,14 @@ const handleRequote = async (req: Request): Promise<Response> => {
     });
     const live = quotes.find(q => q.providerId === quote.providerId);
     if (!live) {
+      // The stored courier vanished from the live quote, so payment cannot proceed
+      // until the shopper picks a delivery option again.
+      WhisperrEvents.checkoutBlockedByStockOrReprice({
+        blockType: 'courier_unavailable',
+        quoteSource: quote.source,
+        storedFee: quote.fee,
+        liveFee: null,
+      });
       return json({
         source: 'quickshipper',
         fee: quote.fee,
@@ -327,6 +336,16 @@ const handleRequote = async (req: Request): Promise<Response> => {
       });
     }
     const delta = Math.abs(live.fee - quote.fee);
+    if (delta > FEE_SLACK) {
+      // Live courier fee drifted past the tolerance, so checkout is blocked until
+      // delivery is chosen again.
+      WhisperrEvents.checkoutBlockedByStockOrReprice({
+        blockType: 'delivery_fee_changed',
+        quoteSource: quote.source,
+        storedFee: quote.fee,
+        liveFee: live.fee,
+      });
+    }
     return json({
       source: 'quickshipper',
       fee: quote.fee,
@@ -408,10 +427,23 @@ const dispatchOrder = async (orderId: string): Promise<{ ok: boolean; error?: st
       status: mapped,
     }).eq('id', orderId);
 
+    // Courier job exists and the paid order is stamped as dispatched.
+    WhisperrEvents.courierShipmentBooked({
+      orderId,
+      courierShipmentId: created.id,
+      courierStatus: status,
+      orderStatus: mapped,
+    });
+
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('dispatch failed', err);
+    // Confirmed booking failure on an already-paid order.
+    WhisperrEvents.courierBookingFailedAfterPayment({
+      orderId,
+      failureCategory: err instanceof QsError ? 'courier_api_error' : 'unexpected_error',
+    });
     await alert('delivery_dispatch_failed', 'critical',
       `Could not book a courier for paid order ${order.order_number}`,
       { orderId, orderNumber: order.order_number, error: message });
@@ -529,6 +561,40 @@ const handleWebhook = async (req: Request, secret: string): Promise<Response> =>
   if (mapped) update.status = mapped;
 
   await admin.from('orders').update(update).eq('id', order.id);
+
+  // Fulfilment milestones, deduplicated against repeated webhook deliveries by
+  // comparing with the fulfilment status the order carried before this update.
+  if (mapped === 'Shipped' && order.status !== 'Shipped') {
+    WhisperrEvents.orderShipped({
+      orderId: order.id,
+      courierShipmentId: qsId,
+      courierStatus: qsStatus,
+      orderStatus: mapped,
+    });
+  } else if (mapped === 'Delivered' && order.status !== 'Delivered') {
+    WhisperrEvents.orderDelivered({
+      orderId: order.id,
+      courierShipmentId: qsId,
+      courierStatus: qsStatus,
+      orderStatus: mapped,
+    });
+  }
+
+  if (qsStatus === 'DeliveryFailed' && order.qs_status !== 'DeliveryFailed') {
+    WhisperrEvents.deliveryFailedOrCancelled({
+      orderId: order.id,
+      courierShipmentId: qsId,
+      deliveryOutcome: 'delivery_failed',
+      courierStatus: qsStatus,
+    });
+  } else if (qsStatus === 'Cancelled' && order.status !== 'Cancelled') {
+    WhisperrEvents.deliveryFailedOrCancelled({
+      orderId: order.id,
+      courierShipmentId: qsId,
+      deliveryOutcome: 'cancelled',
+      courierStatus: qsStatus,
+    });
+  }
 
   if (qsStatus === 'DeliveryFailed') {
     await alert('delivery_failed', 'critical',

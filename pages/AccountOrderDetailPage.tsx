@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Package } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import { Button } from '../components/ui/Button';
 import { useCartStore } from '../store/cart-store';
 import { useToastStore } from '../store/toast-store';
 import { TrackingLink } from '../components/order/TrackingLink';
+import { WhisperrEvents } from '../whisperr-events';
 
 export const AccountOrderDetailPage = () => {
   const { orderId } = useParams<{ orderId: string }>();
@@ -23,6 +24,8 @@ export const AccountOrderDetailPage = () => {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  // One view per order actually shown, not per re-render or navigation return.
+  const viewReportedForRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!orderId || !user?.email) return;
@@ -37,6 +40,18 @@ export const AccountOrderDetailPage = () => {
         setOrder(null);
       } else {
         setOrder(next);
+        if (viewReportedForRef.current !== next.id) {
+          viewReportedForRef.current = next.id;
+          WhisperrEvents.orderDetailViewed({
+            orderId: next.id,
+            orderStatus: next.status ?? null,
+            paymentStatus: next.paymentStatus,
+            productIds: (next.items || []).map((line) => line.product?.id ?? '').join(','),
+            variantIds: (next.items || []).map((line) => line.selectedVariant?.id ?? '').join(','),
+            total: next.total,
+            courierProvider: next.shippingQuote?.providerName ?? null,
+          });
+        }
       }
       setLoading(false);
     })();

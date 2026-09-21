@@ -16,6 +16,7 @@ import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
 import { splitWordmark } from '../lib/wordmark';
 import { itemsOfCart, track } from '../lib/analytics';
+import { WhisperrEvents } from '../whisperr-events';
 
 type CheckoutStep = 'shipping' | 'payment';
 
@@ -51,6 +52,15 @@ export const CheckoutPage = () => {
       currency: settings.currency || 'GEL',
       value: getSubtotal(),
       items: itemsOfCart(items),
+    });
+    WhisperrEvents.beginCheckout({
+      items: JSON.stringify(items.map(line => ({
+        product_id: line.product?.id ?? null,
+        variant_id: line.selectedVariant?.id ?? null,
+        quantity: line.quantity,
+      }))),
+      value: getSubtotal(),
+      currency: settings.currency || 'GEL',
     });
     // Reported once per arrival at the payment step, not on every re-render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -195,6 +205,17 @@ export const CheckoutPage = () => {
       if (!result.configured) {
         setQuoteNotice(t('checkout.deliveryFallback', { amount: fmt(result.fallbackFee ?? settings.shippingRate) }));
       }
+      if (!result.error) {
+        // Delivery was quotable: either real courier options came back, or the
+        // configured flat fallback fee applies.
+        WhisperrEvents.deliveryOptionsReturned({
+          courierProviderIds: result.quotes.map(option => option.providerId).join(','),
+          courierNames: result.quotes.map(option => option.providerName).join(','),
+          fees: result.quotes.map(option => option.fee).join(','),
+          etaMinutes: result.quotes.map(option => option.etaMinutes ?? '').join(','),
+          usedFallbackFee: !result.configured || result.quotes.length === 0,
+        });
+      }
       return result;
     } catch (err: any) {
       const fallback: QuoteResponse = { configured: false, quotes: [], fallbackFee: settings.shippingRate };
@@ -217,6 +238,12 @@ export const CheckoutPage = () => {
       setQuoteNotice(
         result.errorCode === 'address_not_found' ? t('checkout.addressNotFound') : result.error,
       );
+      WhisperrEvents.deliveryAddressNotServiceable({
+        deliveryErrorCategory: result.errorCode || 'no_courier_available',
+        courierServiceConfigured: !!result.configured,
+        quoteCount: result.quotes?.length ?? 0,
+        fallbackFeeAvailable: result.fallbackFee != null,
+      });
       return;
     }
     if (result.configured && result.quotes.length > 0 && !selectedCourier) {
@@ -249,6 +276,9 @@ export const CheckoutPage = () => {
     const boot = async () => {
       setIsLoading(true);
       setError(null);
+      // Tracks how far the payment-form startup got, so a failure is reported
+      // under the stage that actually broke.
+      let failureCategory = 'payment_assets_load_failed';
       try {
         const reuseOrderId = PaymentService.getReusablePendingOrderId(fingerprint);
         const orderNumber = `LK${Date.now().toString().slice(-8)}`;
@@ -281,6 +311,7 @@ export const CheckoutPage = () => {
         };
 
         await PaymentService.loadFlittAssets();
+        failureCategory = 'order_creation_failed';
         const tokenResult = await PaymentService.startCheckout(newOrder, i18n.language, {
           reuseOrderId,
           bootKey: fingerprint,
@@ -291,6 +322,7 @@ export const CheckoutPage = () => {
         if (typeof tokenResult.total === 'number') {
           setChargedTotal(tokenResult.total);
         }
+        failureCategory = 'payment_token_failed';
         if (!tokenResult.publicToken) {
           throw new Error('Missing order access token');
         }
@@ -300,6 +332,7 @@ export const CheckoutPage = () => {
           tokenResult.publicToken,
         );
 
+        failureCategory = 'payment_widget_mount_failed';
         await new Promise((r) => requestAnimationFrame(() => r(null)));
         if (!flittRootRef.current || cancelled) return;
 
@@ -324,6 +357,12 @@ export const CheckoutPage = () => {
       } catch (err: any) {
         if (!cancelled) {
           setError(err?.message || 'Could not start payment');
+          WhisperrEvents.paymentFormStartFailed({
+            failureCategory,
+            cartTotal: total,
+            currency: settings.currency || 'GEL',
+            courierProviderId: selectedCourier?.providerId ?? null,
+          });
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -544,7 +583,15 @@ export const CheckoutPage = () => {
                                 name="courier"
                                 className="accent-brand-green"
                                 checked={selected}
-                                onChange={() => setSelectedCourier(option)}
+                                onChange={() => {
+                                  setSelectedCourier(option);
+                                  WhisperrEvents.courierSelected({
+                                    courierProviderId: option.providerId,
+                                    courierName: option.providerName,
+                                    fee: option.fee,
+                                    etaMinutes: option.etaMinutes ?? null,
+                                  });
+                                }}
                               />
                               {option.logoUrl ? (
                                 <img src={option.logoUrl} alt="" className="w-8 h-8 object-contain" />

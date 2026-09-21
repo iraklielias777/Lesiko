@@ -9,6 +9,7 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { useFormatPrice } from '../lib/format';
 import { TrackingLink } from '../components/order/TrackingLink';
+import { WhisperrEvents } from '../whisperr-events';
 
 export const TrackOrderPage = () => {
   const { t } = useTranslation();
@@ -24,13 +25,28 @@ export const TrackOrderPage = () => {
     setLoading(true);
     setError('');
     setOrder(null);
+    let found: Order | null = null;
     try {
-      const next = await PaymentService.lookupOrder(orderNumber.trim(), email.trim());
-      setOrder(next);
+      found = await PaymentService.lookupOrder(orderNumber.trim(), email.trim());
+      setOrder(found);
     } catch {
       setError(t('account.orderNotFound'));
     } finally {
       setLoading(false);
+    }
+
+    // Reported on the settled lookup outcome, never on submit intent.
+    if (found) {
+      WhisperrEvents.guestOrderTracked({
+        orderId: found.id,
+        orderStatus: found.status ?? null,
+        paymentStatus: found.paymentStatus,
+        itemCount: found.items?.length ?? 0,
+        total: found.total,
+        courierProvider: found.shippingQuote?.providerName ?? null,
+      });
+    } else {
+      WhisperrEvents.guestOrderLookupFailed({ lookupOutcome: 'order_not_found' });
     }
   };
 

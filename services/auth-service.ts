@@ -1,6 +1,7 @@
 
 import { User } from '../types';
 import { supabase } from '../lib/supabase';
+import { WhisperrEvents } from '../whisperr-events';
 
 const mapProfile = (authUser: { id: string; email?: string | null }, profile: any | null): User => ({
   id: authUser.id,
@@ -70,6 +71,8 @@ export const AuthService = {
     const redirectTo = `${window.location.origin}/reset-password`;
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
     if (error) throw error;
+    // Only after the reset mail was accepted by the auth provider.
+    WhisperrEvents.passwordResetRequested();
   },
 
   updatePassword: async (password: string): Promise<void> => {

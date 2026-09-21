@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
 import { usePageSeo } from '../lib/use-seo';
+import { WhisperrEvents } from '../whisperr-events';
 
 export const LoginPage = () => {
   const { t } = useTranslation();
@@ -27,6 +28,11 @@ export const LoginPage = () => {
     try {
       const user = await AuthService.login(formData.email, formData.password);
       login(user);
+      WhisperrEvents.customerSignedIn({
+        accountRole: user.role ?? null,
+        accountCreationDate: user.createdAt ?? null,
+        skinType: user.skinType ?? null,
+      });
       if (user.role === 'admin') {
         navigate('/admin', { replace: true });
       } else {

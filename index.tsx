@@ -1,7 +1,9 @@
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { WhisperrProvider } from '@whisperr/react';
 import App from './App';
+import { WhisperrBridge } from './components/analytics/WhisperrBridge';
 import './i18n'; // Initialize i18n
 import './index.css';
 import { installErrorReporting } from './lib/error-reporting';
@@ -17,6 +19,15 @@ if (!rootElement) throw new Error('Failed to find the root element');
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    {/* Whisperr batches and flushes in the background; mounting it here never blocks startup. */}
+    <WhisperrProvider
+      options={{
+        apiKey: import.meta.env.VITE_WHISPERR_INGESTION_API_KEY,
+        baseUrl: 'https://api.whisperr.net',
+      }}
+    >
+      <WhisperrBridge />
+      <App />
+    </WhisperrProvider>
   </React.StrictMode>
 );

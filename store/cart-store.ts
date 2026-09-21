@@ -8,6 +8,7 @@ import { useSettingsStore } from './settings-store';
 import i18n from '../i18n';
 import { itemOf, track } from '../lib/analytics';
 import { resolvePrice } from '../lib/pricing';
+import { WhisperrEvents } from '../whisperr-events';
 
 interface CartState {
   items: CartItem[];
@@ -39,48 +40,42 @@ export const useCartStore = create<CartState>()(
       isOpen: false,
 
       addItem: (product, quantity = 1, variant) => {
-        set((state) => {
-          const existingItem = state.items.find((item) => {
-             const sameProduct = item.product.id === product.id;
-             const sameVariant = item.selectedVariant?.id === variant?.id;
-             return sameProduct && sameVariant;
+        const existingItem = get().items.find((item) => {
+           const sameProduct = item.product.id === product.id;
+           const sameVariant = item.selectedVariant?.id === variant?.id;
+           return sameProduct && sameVariant;
+        });
+
+        const addToast = useToastStore.getState().addToast;
+        const max = availableStock(product, variant);
+        const desired = (existingItem?.quantity || 0) + quantity;
+
+        if (max <= 0) {
+          addToast(i18n.t('cart.outOfStockToast'));
+          WhisperrEvents.addToCartBlockedByStock({
+            productId: product.id,
+            variantId: variant?.id ?? null,
+            stockOutcome: 'out_of_stock',
+            requestedQuantity: desired,
+            availableInventory: max,
           });
+          return;
+        }
 
-          const addToast = useToastStore.getState().addToast;
-          const max = availableStock(product, variant);
+        const variantName = variant ? ` (${variant.name})` : '';
+        const nextQty = Math.min(desired, max);
 
-          if (max <= 0) {
-            addToast(i18n.t('cart.outOfStockToast'));
-            return state;
-          }
-
-          const variantName = variant ? ` (${variant.name})` : '';
-          const desired = (existingItem?.quantity || 0) + quantity;
-          const nextQty = Math.min(desired, max);
-
-          // No "added" toast: the drawer opens with the item at the top, and a
-          // toast on top of the drawer only ever covered its checkout button.
-          if (nextQty < desired) {
-            addToast(i18n.t('cart.onlyInStock', { count: max, name: `${product.name}${variantName}` }));
-          } else {
-            track('add_to_cart', {
-              currency: useSettingsStore.getState().settings.currency || 'GEL',
-              value: resolvePrice(product, variant).price * (nextQty - (existingItem?.quantity || 0)),
-              items: [itemOf(product, variant, nextQty - (existingItem?.quantity || 0))],
-            });
-          }
-
-          if (existingItem) {
-            return {
-              items: state.items.map((item) =>
-                item.id === existingItem.id
-                  ? { ...item, quantity: nextQty }
-                  : item
-              ),
-              isOpen: true,
-            };
-          }
-          return {
+        if (existingItem) {
+          set((state) => ({
+            items: state.items.map((item) =>
+              item.id === existingItem.id
+                ? { ...item, quantity: nextQty }
+                : item
+            ),
+            isOpen: true,
+          }));
+        } else {
+          set((state) => ({
             items: [...state.items, {
               id: crypto.randomUUID(),
               product,
@@ -88,8 +83,36 @@ export const useCartStore = create<CartState>()(
               selectedVariant: variant,
             }],
             isOpen: true,
-          };
-        });
+          }));
+        }
+
+        // No "added" toast: the drawer opens with the item at the top, and a
+        // toast on top of the drawer only ever covered its checkout button.
+        if (nextQty < desired) {
+          addToast(i18n.t('cart.onlyInStock', { count: max, name: `${product.name}${variantName}` }));
+          WhisperrEvents.addToCartBlockedByStock({
+            productId: product.id,
+            variantId: variant?.id ?? null,
+            stockOutcome: 'quantity_capped',
+            requestedQuantity: desired,
+            availableInventory: max,
+          });
+        } else {
+          const addedQty = nextQty - (existingItem?.quantity || 0);
+          const currency = useSettingsStore.getState().settings.currency || 'GEL';
+          track('add_to_cart', {
+            currency,
+            value: resolvePrice(product, variant).price * addedQty,
+            items: [itemOf(product, variant, addedQty)],
+          });
+          WhisperrEvents.addToCart({
+            productId: product.id,
+            variantId: variant?.id ?? null,
+            quantity: addedQty,
+            value: resolvePrice(product, variant).price * addedQty,
+            currency,
+          });
+        }
       },
 
       removeItem: (itemId) => {
@@ -100,6 +123,7 @@ export const useCartStore = create<CartState>()(
 
       updateQuantity: (itemId, quantity) => {
         if (quantity < 1) return;
+        const target = get().items.find((item) => item.id === itemId);
         set((state) => ({
           items: state.items.map((item) => {
             if (item.id !== itemId) return item;
@@ -107,6 +131,16 @@ export const useCartStore = create<CartState>()(
             return { ...item, quantity: Math.min(quantity, Math.max(1, max || 1)) };
           }),
         }));
+        if (!target) return;
+        const available = availableStock(target.product, target.selectedVariant);
+        WhisperrEvents.cartItemQuantityChanged({
+          cartItemId: target.id,
+          productId: target.product.id,
+          variantId: target.selectedVariant?.id ?? null,
+          requestedQuantity: quantity,
+          storedQuantity: Math.min(quantity, Math.max(1, available || 1)),
+          availableQuantity: available,
+        });
       },
 
       toggleCart: () => set((state) => ({ isOpen: !state.isOpen })),

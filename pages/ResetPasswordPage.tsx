@@ -7,6 +7,7 @@ import { Input } from '../components/ui/Input';
 import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
+import { WhisperrEvents } from '../whisperr-events';
 
 export const ResetPasswordPage = () => {
   const { t } = useTranslation();
@@ -30,6 +31,7 @@ export const ResetPasswordPage = () => {
     setError('');
     try {
       await AuthService.updatePassword(password);
+      WhisperrEvents.passwordResetCompleted({ resetOutcome: 'completed' });
       navigate('/account', { replace: true });
     } catch (err: any) {
       setError(err.message || t('auth.resetFailed'));

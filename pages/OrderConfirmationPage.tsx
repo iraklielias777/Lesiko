@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/auth-store';
 import { useSettingsStore } from '../store/settings-store';
 import { itemsOfOrder, track } from '../lib/analytics';
 import { TrackingLink } from '../components/order/TrackingLink';
+import { WhisperrEvents } from '../whisperr-events';
 
 // Once per order, even if the page is reloaded while it is still polling.
 const reportPurchase = (order: Order) => {
@@ -81,12 +82,21 @@ export const OrderConfirmationPage = () => {
           return;
         }
         if (next.paymentStatus === 'failed') {
+          WhisperrEvents.paymentDeclined({
+            orderId: next.id,
+            paymentStatus: next.paymentStatus,
+          });
           setPolling(false);
           return;
         }
 
         attempts += 1;
         if (attempts >= maxAttempts) {
+          WhisperrEvents.paymentConfirmationDelayed({
+            orderId: next.id,
+            paymentStatus: next.paymentStatus,
+            pollingAttempts: attempts,
+          });
           setPolling(false);
           return;
         }

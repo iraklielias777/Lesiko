@@ -14,7 +14,9 @@ The store's address is `https://www.lesiko.ge` (`ORIGIN` below). The apex
    store and not on the registrar's page.
 3. Settings → General: confirm the project is on a plan that allows commercial
    use. Hobby does not.
-4. Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`.
+4. Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`,
+   `VITE_WHISPERR_INGESTION_API_KEY` (the Whisperr ingestion key; it is a public,
+   rate-limited browser key, which is why it carries the `VITE_` prefix).
    Nothing from Flitt ever goes here.
 5. The storefront already sends anyone arriving on `lesiko.vercel.app` to the
    address saved under Admin → SEO, path intact, as soon as that address

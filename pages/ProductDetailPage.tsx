@@ -20,6 +20,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { CARD_SIZES } from '../lib/product-image';
 import { NotFoundPage } from './NotFoundPage';
 import { itemOf, track } from '../lib/analytics';
+import { WhisperrEvents } from '../whisperr-events';
 
 export const ProductDetailPage = () => {
   const fmt = useFormatPrice();
@@ -50,6 +51,11 @@ export const ProductDetailPage = () => {
         if (data) {
           addRecentlyViewed(data); // Add to history
           track('view_item', { currency: currency || 'GEL', value: data.price, items: [itemOf(data)] });
+          WhisperrEvents.viewItem({
+            currency: currency || 'GEL',
+            value: data.price,
+            items: JSON.stringify([{ item_id: data.id, price: data.price }]),
+          });
           const related = await ProductService.getRelatedProducts(data.id, data.category.slug);
           setRelatedProducts(related);
         }
