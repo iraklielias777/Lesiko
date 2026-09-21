@@ -1,24 +1,43 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useUIStore } from '../../store/ui-store';
 import { ProductDetailView } from './ProductDetailView';
 import { ProductService } from '../../services/product-service';
 import { Product } from '../../types';
+import { resolvePrice } from '../../lib/pricing';
+import { WhisperrEvents } from '../../whisperr-events';
 
 export const QuickViewModal = () => {
   const { isQuickViewOpen, quickViewProduct, closeQuickView } = useUIStore();
   const [detail, setDetail] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
+  // Reported once per opened product, so re-renders or a re-run of the effect
+  // for the same product do not repeat the view.
+  const reportedProductId = useRef<string | null>(null);
 
   useEffect(() => {
+    const reportOpened = (full: Product) => {
+      if (reportedProductId.current === full.id) return;
+      reportedProductId.current = full.id;
+      WhisperrEvents.productQuickViewOpened({
+        productId: full.id,
+        productSlug: full.slug,
+        variantIds: (full.variants || []).map(v => v.id).join(','),
+        price: resolvePrice(full).price,
+        inventoryQuantity: full.inventoryQuantity,
+      });
+    };
+
     if (!isQuickViewOpen || !quickViewProduct) {
       setDetail(null);
+      reportedProductId.current = null;
       return;
     }
 
     if (Array.isArray(quickViewProduct.variants)) {
       setDetail(quickViewProduct);
+      reportOpened(quickViewProduct);
       return;
     }
 
@@ -26,7 +45,10 @@ export const QuickViewModal = () => {
     setLoading(true);
     ProductService.getProductBySlug(quickViewProduct.slug)
       .then(full => {
-        if (!cancelled) setDetail(full || quickViewProduct);
+        if (cancelled) return;
+        const shown = full || quickViewProduct;
+        setDetail(shown);
+        reportOpened(shown);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

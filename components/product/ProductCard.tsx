@@ -14,6 +14,7 @@ import { CARD_SIZES, fitClass, frameColor, primaryImageOf, resizeOf } from '../.
 import { useImageFade } from '../../lib/use-image-fade';
 import { resolvePrice } from '../../lib/pricing';
 import { SaleBadge } from './SaleBadge';
+import { WhisperrEvents } from '../../whisperr-events';
 
 interface ProductCardProps {
   product: Product;
@@ -40,6 +41,24 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, sizes = CARD_
 
   const primaryImage = primaryImageOf(product);
   const primaryImageUrl = primaryImage?.url || '';
+
+  // Toggle removes as well as adds, so the removal is reported only once the
+  // store confirms the product actually left the wishlist.
+  const handleWishlistToggle = () => {
+    const wasSaved = useWishlistStore.getState().isInWishlist(product.id);
+    toggleWishlist(product);
+    if (wasSaved && !useWishlistStore.getState().isInWishlist(product.id)) {
+      WhisperrEvents.productRemovedFromWishlist({
+        productId: product.id,
+        productSlug: product.slug,
+        brandId: product.brand?.id,
+        brandSlug: product.brand?.slug,
+        categorySlug: product.category?.slug,
+        price: priced.price,
+        inventoryQuantity: product.inventoryQuantity,
+      });
+    }
+  };
 
   return (
     <div className="group relative flex flex-col h-full rounded-xl bg-white p-2">
@@ -97,7 +116,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, sizes = CARD_
         {/* Action Buttons - Slide in from Right with Staggered Delay */}
         <div className="absolute top-3 right-3 flex flex-col gap-2 z-20 overflow-hidden pr-1 pb-1">
           <button 
-            onClick={(e) => { e.preventDefault(); toggleWishlist(product); }}
+            onClick={(e) => { e.preventDefault(); handleWishlistToggle(); }}
             className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm transition-all duration-500 ease-premium transform translate-x-12 group-hover:translate-x-0 ${
               isFavorited 
                 ? 'bg-red-50 text-red-500 border border-red-100' 

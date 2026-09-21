@@ -17,6 +17,7 @@ import { useEntitySeo, usePageSeo, useSiteUrl } from '../lib/use-seo';
 import { useSettingsStore } from '../store/settings-store';
 import { CARD_SIZES } from '../lib/product-image';
 import { thumbSrc, thumbSrcSet } from '../lib/image-url';
+import { WhisperrEvents } from '../whisperr-events';
 
 type SortOption = 'relevance' | 'price_asc' | 'price_desc' | 'newest' | 'rating' | 'discount';
 const SORT_OPTIONS: SortOption[] = ['relevance', 'price_asc', 'price_desc', 'newest', 'rating', 'discount'];
@@ -154,6 +155,26 @@ export const ProductListingPage = () => {
       if (cancelled) return;
       setResults(data);
       setLoading(false);
+
+      // Reported once the debounced query has actually committed a result set.
+      const selection = {
+        categorySlugs: [...(filters.categories || []), ...(filters.subCategories || [])].join(','),
+        brandSlugs: (filters.brands || []).join(','),
+        skinTypeKeys: (filters.skinTypes || []).join(','),
+        priceMin: filters.minPrice ?? null,
+        priceMax: filters.maxPrice ?? null,
+        sort: filters.sort ?? null,
+      };
+      if (data.products.length > 0) {
+        WhisperrEvents.catalogBrowsedWithResults({
+          ...selection,
+          page: currentPage,
+          resultTotal: data.total,
+          productIds: data.products.map(p => p.id).join(','),
+        });
+      } else {
+        WhisperrEvents.catalogFiltersReturnNoResults(selection);
+      }
     }, 250);
 
     return () => { cancelled = true; clearTimeout(timeout); };

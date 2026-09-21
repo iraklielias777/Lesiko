@@ -12,6 +12,7 @@ import { useFormatPrice } from '../../lib/format';
 import { defaultVariantOf, fitClass, frameColor, galleryFor, galleryIndexFor, resizeOf } from '../../lib/product-image';
 import { resolvePrice } from '../../lib/pricing';
 import { SaleBadge } from './SaleBadge';
+import { WhisperrEvents } from '../../whisperr-events';
 
 /**
  * Mux Player is a web-component bundle that only matters to a product with a
@@ -91,6 +92,18 @@ export const ProductDetailView: React.FC<ProductDetailViewProps> = ({ product, o
   const selectVariant = (variant: ProductVariant) => {
     setSelectedVariant(variant);
     applyVariantMedia(variant);
+
+    // Shopper-driven choice only; the per-product default is applied in the
+    // reset effect above and is not a selection.
+    const selectedPrice = resolvePrice(product, variant);
+    WhisperrEvents.productVariantSelected({
+      productId: product.id,
+      variantId: variant.id,
+      variantName: variant.name,
+      price: selectedPrice.price,
+      compareAtPrice: selectedPrice.compareAt,
+      availableInventory: variant.inventoryQuantity,
+    });
   };
 
   const selectGalleryImage = (idx: number) => {

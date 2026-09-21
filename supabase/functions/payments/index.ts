@@ -12,6 +12,7 @@
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { WhisperrEvents } from '../../../whisperr-events.ts';
 
 const encodeHex = (bytes: Uint8Array) =>
   Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
@@ -401,6 +402,15 @@ const createToken = async (req: Request): Promise<Response> => {
       err instanceof Error ? err.message : 'Could not reprice order',
       { orderId, orderNumber: order.order_number },
     );
+    if (err instanceof StockError) {
+      // Stock ran short during repricing, so no payment token is minted and the
+      // shopper is stopped at checkout.
+      WhisperrEvents.checkoutBlockedByStockShort({
+        orderId,
+        orderNumber: order.order_number,
+        blockReason: 'stock_short',
+      });
+    }
     const status = err instanceof StockError ? 409 : 400;
     return json({
       error: err instanceof Error ? err.message : 'Could not reprice order',
@@ -619,6 +629,12 @@ const applyCallback = async (
     .maybeSingle();
 
   if (paymentStatus === 'paid') {
+    // Verified gateway approval, already written to the order row.
+    WhisperrEvents.orderPaidConfirmed({
+      orderId,
+      paymentId,
+      gatewayOrderStatus: orderStatusValue,
+    });
     // Until email is wired up this is how the merchant learns a sale happened.
     await alert('order_paid', 'info',
       `Order ${summary?.order_number ?? orderId} paid — ${summary?.total ?? '?'} by ${summary?.customer_email ?? 'unknown'}`,

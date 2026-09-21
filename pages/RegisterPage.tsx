@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
 import { usePageSeo } from '../lib/use-seo';
+import { WhisperrEvents } from '../whisperr-events';
 
 export const RegisterPage = () => {
   const { t } = useTranslation();
@@ -44,10 +45,18 @@ export const RegisterPage = () => {
         password: formData.password,
       });
       if (!hasSession) {
+        WhisperrEvents.accountAwaitingEmailConfirmation({
+          confirmationRequired: true,
+          registrationOutcome: 'awaiting_email_confirmation',
+        });
         setNeedsConfirm(true);
         return;
       }
       login(user);
+      WhisperrEvents.accountCreated({
+        accountCreationDate: user.createdAt ?? null,
+        skinType: user.skinType ?? null,
+      });
       navigate('/account');
     } catch (err: any) {
       setError(err.message || t('auth.registerFailed'));

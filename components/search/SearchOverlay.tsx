@@ -9,6 +9,7 @@ import { Product } from '../../types';
 import { Button } from '../ui/Button';
 import { useFormatPrice } from '../../lib/format';
 import { ProductThumb } from '../product/ProductThumb';
+import { WhisperrEvents } from '../../whisperr-events';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -60,19 +61,35 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
 
   // Debounced Search
   useEffect(() => {
+    let cancelled = false;
     const timer = setTimeout(async () => {
         if (query.trim()) {
             setLoading(true);
             const data = await SearchService.quickSearch(query);
+            if (cancelled) return;
             setResults(data);
             setLoading(false);
             setSelectedIndex(0); // Select first item automatically on new search
+
+            // Report the committed typeahead outcome once per debounced search.
+            if (data.products.length === 0 && data.categories.length === 0 && data.brands.length === 0) {
+                WhisperrEvents.searchReturnedNoResults();
+            } else {
+                WhisperrEvents.quickSearchResultsViewed({
+                    productResultCount: data.products.length,
+                    categoryResultCount: data.categories.length,
+                    brandResultCount: data.brands.length,
+                    productIds: data.products.map(p => p.id).join(','),
+                    categorySlugs: data.categories.map(c => c.slug).join(','),
+                    brandSlugs: data.brands.map(b => b.slug).join(','),
+                });
+            }
         } else {
             setResults({ products: [], categories: [], brands: [] });
             setSelectedIndex(-1);
         }
     }, 200);
-    return () => clearTimeout(timer);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [query]);
 
   const addToHistory = (term: string) => {
@@ -161,6 +178,11 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
       } else if (item.type === 'brand') {
           navigate(`/products?brands=${item.data.slug}`);
       } else if (item.type === 'product') {
+          WhisperrEvents.searchProductSelected({
+              productId: item.data.id,
+              productSlug: item.data.slug,
+              productPrice: item.data.price,
+          });
           navigate(`/product/${item.data.slug}`);
       }
       onClose();

@@ -31,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
 import { ProductThumb } from '../components/product/ProductThumb';
+import { WhisperrEvents } from '../whisperr-events';
 
 type TabType = 'overview' | 'orders' | 'profile' | 'addresses';
 
@@ -118,6 +119,9 @@ export const AccountPage = () => {
       };
       await AuthService.updateProfile(user.id, patch);
       updateUser(patch);
+      if (patch.skinType) {
+        WhisperrEvents.skinProfileSaved({ skinType: patch.skinType });
+      }
       addToast(t('account.profileUpdated'));
       setIsEditingProfile(false);
     } catch {
@@ -127,6 +131,11 @@ export const AccountPage = () => {
 
   const handleBuyAgain = (item: Order['items'][number]) => {
     addItemToCart(item.product, item.quantity, item.selectedVariant);
+    WhisperrEvents.repeatPurchaseItemReadded({
+      productId: item.product?.id ?? null,
+      variantId: item.selectedVariant?.id ?? null,
+      quantity: item.quantity,
+    });
     addToast(t('product.buyAgain'));
   };
 
@@ -157,13 +166,18 @@ export const AccountPage = () => {
     e.preventDefault();
     setIsSavingAddress(true);
     try {
+      let saved: SavedAddress;
       if (editingAddressId) {
-        const saved = await AddressService.updateAddress(editingAddressId, addressForm);
+        saved = await AddressService.updateAddress(editingAddressId, addressForm);
         setAddresses((prev) => prev.map((a) => (a.id === saved.id ? saved : a)));
       } else {
-        const saved = await AddressService.addAddress(user.id, addressForm, addresses.length === 0);
+        saved = await AddressService.addAddress(user.id, addressForm, addresses.length === 0);
         setAddresses((prev) => [...prev, saved]);
       }
+      WhisperrEvents.shippingAddressSaved({
+        isDefault: !!saved.isDefault,
+        country: saved.country ?? null,
+      });
       closeAddressForm();
     } catch (err) {
       addToast(err instanceof Error ? err.message : 'Failed to save address', 'error');

@@ -9,6 +9,7 @@ import { SEO } from '../components/seo/SEO';
 import { useFormatPrice } from '../lib/format';
 import { ProductThumb } from '../components/product/ProductThumb';
 import { resolvePrice } from '../lib/pricing';
+import { WhisperrEvents } from '../whisperr-events';
 
 export const CartPage = () => {
   const fmt = useFormatPrice();
@@ -102,7 +103,15 @@ export const CartPage = () => {
                       <div className="text-right">
                         <p className="font-bold text-gray-900 mb-1">{fmt(displayPrice * item.quantity)}</p>
                         <button
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => {
+                            removeItem(item.id);
+                            WhisperrEvents.cartItemRemoved({
+                              cartLineId: item.id,
+                              productId: item.product?.id ?? null,
+                              variantId: item.selectedVariant?.id ?? null,
+                              quantity: item.quantity,
+                            });
+                          }}
                           className="text-xs text-gray-400 hover:text-red-500 transition-colors inline-flex items-center gap-1"
                         >
                           <Trash2 className="w-3 h-3" /> {t('common.remove')}
@@ -158,7 +167,21 @@ export const CartPage = () => {
                 className="w-full shadow-xl shadow-brand-green/20"
                 size="lg"
                 rightIcon={<ArrowRight className="w-4 h-4" />}
-                onClick={() => navigate('/checkout')}
+                onClick={() => {
+                  // Only reachable with a non-empty basket: the empty cart
+                  // renders its own branch above.
+                  WhisperrEvents.checkoutStarted({
+                    cartLineCount: items.length,
+                    productIds: items.map(line => line.product?.id ?? '').join(','),
+                    variantIds: items.map(line => line.selectedVariant?.id ?? '').join(','),
+                    subtotal,
+                    shipping,
+                    tax,
+                    total,
+                    currency: settings.currency || 'GEL',
+                  });
+                  navigate('/checkout');
+                }}
               >
                 {t('cart.proceedToCheckout')}
               </Button>

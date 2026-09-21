@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 import { Product } from '../types';
 import { useToastStore } from './toast-store';
 import i18n from '../i18n';
+import { WhisperrEvents } from '../whisperr-events';
 
 interface WishlistState {
   items: Product[];
@@ -80,6 +81,12 @@ export const useWishlistStore = create<WishlistState>()(
         } else {
             set({ items: [...items, product] });
             useToastStore.getState().addToast(i18n.t('wishlist.added'));
+            WhisperrEvents.productAddedToWishlist({
+              productId: product.id,
+              productSlug: product.slug,
+              brandId: product.brand?.id ?? null,
+              categorySlug: product.category?.slug ?? null,
+            });
         }
       },
 
@@ -89,6 +96,10 @@ export const useWishlistStore = create<WishlistState>()(
             savedItems: [...state.savedItems, product]
         }));
         useToastStore.getState().addToast(i18n.t('wishlist.savedToast'));
+        WhisperrEvents.wishlistItemSavedForLater({
+          productId: product.id,
+          productSlug: product.slug,
+        });
       },
 
       moveToWishlist: (product) => {
@@ -104,6 +115,7 @@ export const useWishlistStore = create<WishlistState>()(
             savedItems: state.savedItems.filter(i => i.id !== productId)
         }));
         useToastStore.getState().addToast(i18n.t('wishlist.removedSaved'), 'info');
+        WhisperrEvents.savedForLaterItemRemoved({ productId });
       },
 
       isInWishlist: (productId) => {
