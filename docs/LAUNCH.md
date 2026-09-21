@@ -15,8 +15,13 @@ The store's address is `https://www.lesiko.ge` (`ORIGIN` below). The apex
 3. Settings → General: confirm the project is on a plan that allows commercial
    use. Hobby does not.
 4. Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`,
-   `VITE_WHISPERR_INGESTION_API_KEY` (the Whisperr ingestion key; it is a public,
-   rate-limited browser key, which is why it carries the `VITE_` prefix).
+   `VITE_WHISPERR_INGESTION_API_KEY` (a **Browser / mobile** key starting with
+   `wpk_`, generated in Whisperr's **Lesiko** workspace). Set it for Production
+   and deploy a new build: Vite embeds the value at build time. Renaming a
+   variable does not update an existing deployment. `NEXT_PUBLIC_...` is a
+   Next.js convention and is not read by this Vite app. Never use a `wrk_`
+   server key in a `VITE_` variable. Production builds reject missing/wrong keys.
+   The `connect-src` policy in `vercel.json` must allow `https://api.whisperr.net`.
    Nothing from Flitt ever goes here.
 5. The storefront already sends anyone arriving on `lesiko.vercel.app` to the
    address saved under Admin → SEO, path intact, as soon as that address
@@ -39,6 +44,29 @@ The store's address is `https://www.lesiko.ge` (`ORIGIN` below). The apex
    today. New project → dump/restore → storage copy → redeploy `media`,
    `payments`, `seo`, `delivery` with their secrets → repoint the Vercel env vars → rerun
    `scripts/smoke.mjs`.
+5. Whisperr's **Server** key (`wrk_`) belongs in Edge Functions → Secrets as
+   `WHISPERR_INGESTION_API_KEY`. A Vercel variable is not available to Supabase.
+   Deploy the updated `payments` and `delivery` functions, including their
+   `_shared` dependency, separately from the Vercel storefront. Both keys must
+   belong to the same Lesiko workspace.
+
+### Verify Whisperr delivery
+
+Sign in as a **customer**, open a product, and add it to the cart. Browser
+events wait for identification; signed-out browsing stays queued and admin
+accounts are excluded. Check for accepted `/v1/events/batch` requests, then
+confirm `view_item` and `add_to_cart` appear in Lesiko's Whisperr event feed.
+A successful storefront build alone does not verify delivery.
+
+Server order events use the same account-by-email association as order history
+and send the customer UUID, never the email address, to Whisperr. Orders with no
+matching customer account are explicitly skipped; guest identity linking is not
+implemented. Edge logs distinguish a missing server key, unmatched customer,
+and delivery failure. Use the existing payment sandbox process to verify order
+events after the Edge Functions deploy; do not place a real charge to test analytics.
+
+Local checks: `npm run test:whisperr` (Node 22.18+), `npx tsc --noEmit`,
+`npm run build`, and `deno test supabase/functions/_shared/whisperr.test.ts`.
 
 ## 3. Admin panel
 
