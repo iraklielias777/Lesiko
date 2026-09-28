@@ -14,6 +14,7 @@ import { useSettingsStore } from '../store/settings-store';
 import { itemsOfOrder, track } from '../lib/analytics';
 import { TrackingLink } from '../components/order/TrackingLink';
 import { WhisperrEvents } from '../whisperr-events';
+import { recallPurchase } from '../lib/recall';
 
 // Once per order, even if the page is reloaded while it is still polling.
 const reportPurchase = (order: Order) => {
@@ -31,6 +32,11 @@ const reportPurchase = (order: Order) => {
     shipping: order.shipping,
     tax: order.tax,
     items: itemsOfOrder(order),
+  });
+  recallPurchase({
+    orderId: order.orderNumber || order.id,
+    total: order.total,
+    currency: useSettingsStore.getState().settings.currency || 'GEL',
   });
 };
 

@@ -15,7 +15,8 @@ import {
   Tag,
   FileText,
   Search,
-  Loader2
+  Loader2,
+  BarChart3
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth-store';
 import { AuthService } from '../../services/auth-service';
@@ -69,6 +70,7 @@ export const AdminLayout = () => {
 
   const navItems = [
     { icon: LayoutDashboard, label: t('admin.dashboard'), path: '/admin' },
+    { icon: BarChart3, label: t('admin.analytics'), path: '/admin/analytics' },
     { icon: Package, label: t('admin.products'), path: '/admin/products' },
     { icon: ListFilter, label: t('admin.categories'), path: '/admin/categories' },
     { icon: Tag, label: t('admin.brands'), path: '/admin/brands' },

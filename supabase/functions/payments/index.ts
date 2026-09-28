@@ -609,6 +609,24 @@ const decrementInventoryForOrder = async (orderId: string): Promise<void> => {
   }
 };
 
+const recordPurchases = async (orderId: string) => {
+  const { data: items, error } = await admin
+    .from('order_items')
+    .select('product_id, quantity')
+    .eq('order_id', orderId);
+  if (error) throw error;
+  for (const item of items || []) {
+    if (!item.product_id) continue;
+    const { error: rpcError } = await admin.rpc('record_store_event', {
+      p_event: 'purchase',
+      p_session: `${orderId}:${item.product_id}`,
+      p_product_id: item.product_id,
+      p_count: Number(item.quantity) || 1,
+    });
+    if (rpcError) console.error('purchase analytics', rpcError.message);
+  }
+};
+
 const applyCallback = async (
   orderId: string,
   currentStatus: string,
@@ -649,6 +667,11 @@ const applyCallback = async (
     await alert('order_paid', 'info',
       `Order ${summary?.order_number ?? orderId} paid — ${summary?.total ?? '?'} by ${summary?.customer_email ?? 'unknown'}`,
       { orderId, orderNumber: summary?.order_number, total: summary?.total, email: summary?.customer_email, paymentId });
+    try {
+      await recordPurchases(orderId);
+    } catch (err) {
+      console.error('recordPurchases failed', err);
+    }
     try {
       await decrementInventoryForOrder(orderId);
     } catch (err) {

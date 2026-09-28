@@ -85,10 +85,10 @@ We may update these terms; the version shown on this page at the time of your or
 When you order, create an account or write to us we collect the details needed to do that: name, email address, phone number, delivery address and what you ordered. Our servers also record technical data such as your IP address and browser type.
 
 ## Why we use it
-To deliver your orders and handle returns, to run your account, to answer your questions, to meet accounting and tax obligations, and — only if analytics are enabled — to understand how the site is used in aggregate.
+To deliver your orders and handle returns, to run your account, to answer your questions, to meet accounting and tax obligations, and — only if analytics are enabled — to understand how the site is used in aggregate. The store also counts pages and products in aggregate, without a name or contact detail, so we can see what is being looked at.
 
 ## Who we share it with
-Delivery partners receive your name, address and phone number to deliver the parcel. Flitt processes your card payment; we never receive card numbers. Our hosting providers (Supabase and Vercel) store data on our behalf under contract. We do not sell personal data.
+Delivery partners receive your name, address and phone number to deliver the parcel. Flitt processes your card payment; we never receive card numbers. The site chat is provided by Recall; a message you send there is received by that service, and if you are signed in we also pass your name, email and phone so it can answer questions about your own orders. Our hosting providers (Supabase and Vercel) store data on our behalf under contract. We do not sell personal data.
 
 ## How long we keep it
 Order records are kept for as long as accounting law requires. Account details are kept until you delete your account. Support messages are kept for two years.
@@ -108,10 +108,10 @@ We will update this page if our practices change; the date at the top shows the 
 შეკვეთის, ანგარიშის შექმნის ან ჩვენთან მიმოწერისას ვაგროვებთ ამისთვის საჭირო მონაცემებს: სახელს, ელფოსტას, ტელეფონის ნომერს, მიწოდების მისამართს და შეკვეთის შინაარსს. სერვერები ასევე აფიქსირებენ ტექნიკურ მონაცემებს, მაგალითად IP მისამართსა და ბრაუზერის ტიპს.
 
 ## რატომ ვიყენებთ
-შეკვეთების მიწოდებისა და დაბრუნების დასამუშავებლად, ანგარიშის სამართავად, კითხვებზე პასუხისთვის, საბუღალტრო და საგადასახადო ვალდებულებების შესასრულებლად და — მხოლოდ ანალიტიკის ჩართვის შემთხვევაში — საიტის გამოყენების ზოგადი სურათის გასაგებად.
+შეკვეთების მიწოდებისა და დაბრუნების დასამუშავებლად, ანგარიშის სამართავად, კითხვებზე პასუხისთვის, საბუღალტრო და საგადასახადო ვალდებულებების შესასრულებლად და — მხოლოდ ანალიტიკის ჩართვის შემთხვევაში — საიტის გამოყენების ზოგადი სურათის გასაგებად. მაღაზია ასევე ითვლის გვერდებსა და პროდუქტებს ჯამურად, სახელისა და საკონტაქტო მონაცემის გარეშე, რათა დავინახოთ რას ათვალიერებენ.
 
 ## ვის ვუზიარებთ
-მიწოდების პარტნიორები იღებენ თქვენს სახელს, მისამართსა და ტელეფონის ნომერს ამანათის მისატანად. ბარათით გადახდას ამუშავებს Flitt; ბარათის ნომერს ჩვენ არ ვიღებთ. ჰოსტინგის პროვაიდერები (Supabase და Vercel) მონაცემებს ინახავენ ჩვენი სახელით, ხელშეკრულების საფუძველზე. პერსონალურ მონაცემებს არ ვყიდით.
+მიწოდების პარტნიორები იღებენ თქვენს სახელს, მისამართსა და ტელეფონის ნომერს ამანათის მისატანად. ბარათით გადახდას ამუშავებს Flitt; ბარათის ნომერს ჩვენ არ ვიღებთ. საიტის ჩატს უზრუნველყოფს Recall; იქ გაგზავნილ შეტყობინებას იღებს ეს სერვისი, ხოლო თუ შესული ხართ, გადაეცემა სახელი, ელფოსტა და ტელეფონიც, რათა უპასუხოს თქვენს შეკვეთებზე. ჰოსტინგის პროვაიდერები (Supabase და Vercel) მონაცემებს ინახავენ ჩვენი სახელით, ხელშეკრულების საფუძველზე. პერსონალურ მონაცემებს არ ვყიდით.
 
 ## რამდენ ხანს ვინახავთ
 შეკვეთების ჩანაწერები ინახება საბუღალტრო კანონმდებლობით დადგენილი ვადით. ანგარიშის მონაცემები ინახება ანგარიშის წაშლამდე. მხარდაჭერის მიმოწერა ინახება ორი წელი.

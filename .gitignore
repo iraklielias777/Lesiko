@@ -28,3 +28,9 @@ supabase/.temp/
 
 # Cursor local tooling / MCP
 .cursor/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

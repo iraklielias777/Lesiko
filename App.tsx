@@ -11,6 +11,7 @@ import { QuickViewModal } from './components/product/QuickViewModal';
 import { Toaster } from './components/ui/Toaster';
 import { useSettingsStore } from './store/settings-store';
 import { AuthBootstrap } from './components/auth/AuthBootstrap';
+import { RecallWidget } from './components/recall/RecallWidget';
 
 // The three routes a shopper actually lands on stay in the entry chunk;
 // splitting them would only add a round trip to the first paint.
@@ -61,6 +62,7 @@ const lazyPage = <T,>(loader: () => Promise<T>, pick: (m: T) => React.ComponentT
 
 const AdminLayout = lazyPage(() => import('./components/admin/AdminLayout'), m => m.AdminLayout);
 const AdminDashboard = lazyPage(() => import('./pages/admin/AdminDashboard'), m => m.AdminDashboard);
+const AdminAnalytics = lazyPage(() => import('./pages/admin/AdminAnalytics'), m => m.AdminAnalytics);
 const AdminProducts = lazyPage(() => import('./pages/admin/AdminProducts'), m => m.AdminProducts);
 const AdminOrders = lazyPage(() => import('./pages/admin/AdminOrders'), m => m.AdminOrders);
 const AdminCustomers = lazyPage(() => import('./pages/admin/AdminCustomers'), m => m.AdminCustomers);
@@ -223,6 +225,7 @@ const App = () => {
             <Routes>
                 <Route path="/admin" element={<AdminLayout />}>
                     <Route index element={<AdminDashboard />} />
+                    <Route path="analytics" element={<AdminAnalytics />} />
                     <Route path="products" element={<AdminProducts />} />
                     <Route path="categories" element={<AdminCategories />} />
                     <Route path="brands" element={<AdminBrands />} />
@@ -272,6 +275,7 @@ const App = () => {
                           </Suspense>
                         </main>
                         <Footer />
+                        <RecallWidget />
                     </>
                 } />
             </Routes>

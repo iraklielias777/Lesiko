@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { useFormatPrice } from '../../lib/format';
 import { ProductThumb } from '../product/ProductThumb';
 import { WhisperrEvents } from '../../whisperr-events';
+import { track } from '../../lib/analytics';
 
 interface SearchOverlayProps {
   isOpen: boolean;
@@ -67,6 +68,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({ isOpen, onClose })
             setLoading(true);
             const data = await SearchService.quickSearch(query);
             if (cancelled) return;
+            track('search', { search_term: query.trim() });
             setResults(data);
             setLoading(false);
             setSelectedIndex(0); // Select first item automatically on new search

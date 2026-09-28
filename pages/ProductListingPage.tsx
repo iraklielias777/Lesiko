@@ -15,6 +15,7 @@ import { BrandService } from '../services/brand-service';
 import { Brand } from '../types';
 import { useEntitySeo, usePageSeo, useSiteUrl } from '../lib/use-seo';
 import { useSettingsStore } from '../store/settings-store';
+import { track } from '../lib/analytics';
 import { CARD_SIZES } from '../lib/product-image';
 import { thumbSrc, thumbSrcSet } from '../lib/image-url';
 import { WhisperrEvents } from '../whisperr-events';
@@ -139,6 +140,16 @@ export const ProductListingPage = () => {
     BrandService.getBrandBySlug(slug).then(found => { if (active) setBrand(found); });
     return () => { active = false; };
   }, [isBrandPage, slug]);
+
+  useEffect(() => {
+    if (isBrandPage || isSalePage) return;
+    const category = location.pathname.startsWith('/category/') && slug
+      ? slug
+      : location.pathname === '/products'
+        ? 'shop'
+        : '';
+    if (category) track('view_category', { category });
+  }, [slug, isBrandPage, isSalePage, location.pathname]);
 
   // `filters` is rebuilt on every change, so its identity is useless as a
   // dependency; the serialised form only changes when a value actually does.

@@ -109,6 +109,7 @@ test-mode purchase has been seen end to end on the dashboard.
 | Supabase → same | `QS_USERNAME` / `QS_PASSWORD` | merchant login | never Vercel, never `VITE_` |
 | Supabase → same | `QS_WEBHOOK_SECRET` | a long random string | webhook path is `/functions/v1/delivery/webhook/{secret}` |
 | Supabase → same | `GOOGLE_GEOCODING_KEY` | optional | typed checkout addresses; Nominatim is used if this is blank |
+| Supabase → same | `RECALL_IDENTITY_SECRET` | Recall identity secret (`ris_…`) | signs the chat token for signed-in shoppers; never Vercel |
 | Admin → Settings | Dispatch origin | street, city, lat, lng, phone | pickup for `GET /v1/order/fees` and `POST /v1/order` |
 
 Ask QuickShipper to enable Delivery API on the merchant and **allowlist Supabase Edge egress IPs**. After secrets are set, an admin can `POST /functions/v1/delivery/setup-webhook` once (or run a dispatch from a paid test order). Keep quotes on sandbox URLs until a test paid order creates a Draft then ReadyForPickup job.
