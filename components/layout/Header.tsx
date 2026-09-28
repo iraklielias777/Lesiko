@@ -66,8 +66,8 @@ export const Header = () => {
   const closeMobile = () => setIsMobileMenuOpen(false);
   const accountLink = user?.role === 'admin' ? '/admin' : '/account';
   const accountLabel = user?.role === 'admin' ? t('common.admin') : t('common.myAccount');
-  // Every category gets a slot: five fit at lg, the rest join at xl so a
-  // category as large as Hair is never simply missing from the desktop nav.
+  // The full list only fits on a wide desktop. Smaller widths use the menu,
+  // and a mid-size desktop shows the first categories until the rest fit.
   const displayCategories = categories;
   const currentLang = i18n.resolvedLanguage || i18n.language;
 
@@ -100,30 +100,30 @@ export const Header = () => {
       </div>
       <header className={`sticky top-0 z-40 transition-all duration-500 border-b border-transparent ${isScrolled ? 'bg-white/95 backdrop-blur-md shadow-sm border-gray-100 py-3' : 'bg-white py-5'}`}>
         <div className="container mx-auto px-4 relative">
-          <div className="flex items-center justify-between h-10">
-            <div className="flex items-center gap-4 relative z-20">
-              <button type="button" className="lg:hidden p-2 -ml-2 text-gray-800 hover:text-brand-green transition-colors focus:outline-none" onClick={() => setIsMobileMenuOpen(true)}>
+          <div className="flex items-center justify-between h-10 gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0 relative z-20">
+              <button type="button" className="xl:hidden p-2 -ml-2 text-gray-800 hover:text-brand-green transition-colors focus:outline-none" onClick={() => setIsMobileMenuOpen(true)} aria-label={t('common.menu')}>
                 <Menu className="w-6 h-6" />
               </button>
               <Link to="/" className="flex items-center group">
                 <span className="font-heading font-bold text-2xl md:text-3xl tracking-tighter text-brand-dark">{wordmarkHead}<span className="text-brand-green">{wordmarkTail}</span>.</span>
               </Link>
             </div>
-            <div className="flex items-center justify-end flex-1 ml-4 lg:ml-12 relative">
-              <nav className="hidden lg:flex items-center gap-8 xl:gap-10 absolute left-0">
-                <Link to="/products" className="text-[13px] uppercase tracking-wider font-semibold text-gray-800 hover:text-brand-green transition-colors relative group py-2">
-                  {t('common.shopAll')}
+            <nav className="hidden xl:flex flex-1 items-center justify-center gap-4 2xl:gap-7 min-w-0">
+              <Link to="/products" className="shrink-0 text-[12px] 2xl:text-[13px] uppercase tracking-wide 2xl:tracking-wider font-semibold text-gray-800 hover:text-brand-green transition-colors relative group py-2">
+                {t('common.shopAll')}
+                <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-brand-green transition-all duration-300 group-hover:w-full" />
+              </Link>
+              {displayCategories.map((cat, index) => (
+                <Link key={cat.slug} to={`/category/${cat.slug}`} className={`${index >= 4 ? 'hidden 2xl:inline-flex' : ''} shrink-0 text-[12px] 2xl:text-[13px] uppercase tracking-wide 2xl:tracking-wider font-semibold text-gray-800 hover:text-brand-green transition-colors relative group py-2`}>
+                  {categoryLabel(cat, i18n.language)}
                   <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-brand-green transition-all duration-300 group-hover:w-full" />
                 </Link>
-                {displayCategories.map((cat, index) => (
-                  <Link key={cat.slug} to={`/category/${cat.slug}`} className={`${index >= 5 ? 'hidden xl:inline-flex' : ''} text-[13px] uppercase tracking-wider font-semibold text-gray-800 hover:text-brand-green transition-colors relative group py-2`}>
-                    {categoryLabel(cat, i18n.language)}
-                    <span className="absolute bottom-0 left-0 w-0 h-[2px] bg-brand-green transition-all duration-300 group-hover:w-full" />
-                  </Link>
-                ))}
-                <Link to="/sale" className="text-[13px] uppercase tracking-wider font-semibold text-red-500 hover:text-red-600 transition-colors">{t('common.sale')}</Link>
-              </nav>
-              <div className="flex items-center gap-1 md:gap-3 ml-auto relative z-30 pl-2">
+              ))}
+              <Link to="/sale" className="shrink-0 text-[12px] 2xl:text-[13px] uppercase tracking-wide 2xl:tracking-wider font-semibold text-red-500 hover:text-red-600 transition-colors">{t('common.sale')}</Link>
+            </nav>
+            <div className="flex items-center shrink-0 relative z-30">
+              <div className="flex items-center gap-0.5 sm:gap-1 md:gap-2">
                 <button type="button" onClick={() => setIsSearchOverlayOpen(true)} className="p-2 rounded-full text-gray-800 hover:text-brand-green transition-colors"><Search className="w-5 h-5" /></button>
                 <div className="h-4 w-px bg-gray-200 hidden md:block" />
                 <div className="flex items-center gap-1 md:gap-3">
@@ -132,7 +132,7 @@ export const Header = () => {
                     ? <Link to={accountLink} className="p-2 text-gray-800 hover:text-brand-green transition-colors" title={accountLabel}><User className="w-5 h-5" /></Link>
                     : <Link to="/login" className="p-2 text-gray-800 hover:text-brand-green transition-colors"><User className="w-5 h-5" /></Link>}
                   {isAuthenticated && (
-                    <button type="button" onClick={handleLogout} className="hidden lg:block p-2 text-gray-800 hover:text-red-500 transition-colors" title={t('common.logOut')}>
+                    <button type="button" onClick={handleLogout} className="hidden xl:block p-2 text-gray-800 hover:text-red-500 transition-colors" title={t('common.logOut')}>
                       <LogOut className="w-5 h-5" />
                     </button>
                   )}
@@ -146,7 +146,7 @@ export const Header = () => {
           </div>
         </div>
       </header>
-      <div className={`fixed inset-0 z-[60] lg:hidden transition-all duration-500 ${isMobileMenuOpen ? 'visible' : 'invisible'}`}>
+      <div className={`fixed inset-0 z-[60] xl:hidden transition-all duration-500 ${isMobileMenuOpen ? 'visible' : 'invisible'}`}>
         <div className={`absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity duration-500 ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={closeMobile} />
         <div className="absolute top-0 left-0 w-[85%] max-w-sm h-full bg-white shadow-2xl flex flex-col transition-transform duration-500" style={{ transform: isMobileMenuOpen ? 'translateX(0)' : 'translateX(-100%)' }}>
           <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
