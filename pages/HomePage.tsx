@@ -19,6 +19,14 @@ import { useSettingsStore } from '../store/settings-store';
 import { usePageSeo, useSiteUrl } from '../lib/use-seo';
 import { CARD_SIZES } from '../lib/product-image';
 
+/** Lesiko on the first line, the rest on the second. The dash is not part of the lockup. */
+const headlineLines = (title: string): string[] => {
+  const text = title.replace(/\s*[—–]\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  const match = text.match(/^(lesiko)\s+(.+)$/i);
+  if (!match) return text ? [text] : [];
+  return ['Lesiko', match[2]];
+};
+
 /**
  * The hero renders twice — a full-bleed backdrop on mobile, a right-hand panel
  * on desktop — because the two layouts are genuinely different. `display: none`
@@ -186,8 +194,10 @@ export const HomePage = () => {
             <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 md:bg-white border border-white/20 md:border-gray-100 shadow-sm text-white md:text-brand-dark text-[11px] font-bold uppercase tracking-widest mb-6 md:mb-8 backdrop-blur-md md:backdrop-blur-none ${reveal()}`}>
               <Sparkles className="w-3.5 h-3.5 text-brand-green fill-brand-green" /> {heroText.eyebrow}
             </div>
-            <h1 className={`font-heading text-5xl sm:text-6xl md:text-8xl font-bold mb-4 md:mb-6 leading-[0.95] text-white md:text-brand-dark tracking-tighter ${reveal()}`}>
-              {heroText.title}
+            <h1 className={`font-heading text-[clamp(2.15rem,3.4vw,4.5rem)] font-bold mb-4 md:mb-6 leading-[0.95] text-white md:text-brand-dark tracking-tighter ${reveal()}`}>
+              {headlineLines(heroText.title).map(line => (
+                <span key={line} className="block whitespace-nowrap">{line}</span>
+              ))}
             </h1>
             <p className={`text-base sm:text-lg text-gray-200 md:text-gray-600 mb-8 md:mb-10 leading-relaxed max-w-md font-light tracking-wide ${reveal()}`} style={{ animationDelay: '100ms' }}>
               {heroText.subtitle}
