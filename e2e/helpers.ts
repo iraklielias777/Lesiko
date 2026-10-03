@@ -115,8 +115,8 @@ export async function seedCartAndOpenCheckout(page: Page) {
   });
   await page.goto('/cart');
   await waitForStorefront(page);
-  await expect(page.getByRole('button', { name: /Proceed to Checkout/ })).toBeVisible();
-  await page.getByRole('button', { name: /Proceed to Checkout/ }).click();
+  await expect(page.getByRole('button', { name: /Request this order/ })).toBeVisible();
+  await page.getByRole('button', { name: /Request this order/ }).click();
   await expect(page.getByRole('heading', { name: /Contact/ })).toBeVisible();
   await expect(page.getByText('Updating prices…')).toHaveCount(0, { timeout: 20_000 });
 }
@@ -128,7 +128,7 @@ export async function addInStockProduct(page: Page) {
   const add = page.getByRole('button', { name: /Add to Cart|დამატება/ }).first();
   await expect(add).toBeEnabled({ timeout: 25_000 });
   await add.click();
-  await expect(page.getByRole('link', { name: /Proceed to Checkout|ყიდვა/ })).toBeVisible();
+  await expect(page.getByRole('link', { name: /Request this order|შეკვეთის მოთხოვნა/ })).toBeVisible();
 }
 
 export async function goToCheckout(page: Page) {

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, CreditCard, Loader2 } from 'lucide-react';
+import { CreditCard, Loader2, MessageCircle } from 'lucide-react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useCartStore } from '../store/cart-store';
 import { useAuthStore } from '../store/auth-store';
@@ -17,8 +17,14 @@ import { useFormatPrice } from '../lib/format';
 import { splitWordmark } from '../lib/wordmark';
 import { itemsOfCart, track } from '../lib/analytics';
 import { WhisperrEvents } from '../whisperr-events';
+import { openRecall } from '../lib/recall';
+import { resolvePrice } from '../lib/pricing';
 
-type CheckoutStep = 'shipping' | 'payment';
+type CheckoutStep = 'shipping' | 'request' | 'payment';
+
+const sandboxHost = () =>
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 export const CheckoutPage = () => {
   const fmt = useFormatPrice();
@@ -45,9 +51,14 @@ export const CheckoutPage = () => {
   const flittRootRef = useRef<HTMLDivElement>(null);
   const mountedTokenRef = useRef<string | null>(null);
   const prefilledRef = useRef(false);
+  const [sandboxAvailable, setSandboxAvailable] = useState(false);
 
   useEffect(() => {
-    if (step !== 'payment') return;
+    setSandboxAvailable(sandboxHost());
+  }, []);
+
+  useEffect(() => {
+    if (step !== 'request' && step !== 'payment') return;
     track('begin_checkout', {
       currency: settings.currency || 'GEL',
       value: getSubtotal(),
@@ -181,7 +192,6 @@ export const CheckoutPage = () => {
     setQuoting(true);
     setQuoteNotice(null);
     setSelectedCourier(null);
-    setError(null);
     try {
       const result = await DeliveryService.quote({
         address1: address.address1,
@@ -257,13 +267,31 @@ export const CheckoutPage = () => {
         // Non-blocking — still continue to payment.
       }
     }
-    setStep('payment');
+    setStep('request');
     window.scrollTo(0, 0);
   };
 
-  // Create or reuse a pending order, mint Flitt token, mount widget.
+  const sendRequest = () => {
+    const currency = settings.currency || 'GEL';
+    openRecall(i18n.language, {
+      name: `${address.firstName} ${address.lastName}`.trim(),
+      phone: address.phone,
+      email: address.email,
+      address: [address.address1, address.address2, address.city, address.state, address.zip, address.country].filter(Boolean).join(', '),
+      currency,
+      total: displayTotal,
+      items: items.map(line => ({
+        name: line.selectedVariant ? `${line.product.name} (${line.selectedVariant.name})` : line.product.name,
+        quantity: line.quantity,
+        price: resolvePrice(line.product, line.selectedVariant).price,
+      })),
+    });
+  };
+
+  // Localhost only. The live site never mounts Flitt; this is how the sandbox
+  // card form can still be tried from the dev server.
   useEffect(() => {
-    if (step !== 'payment' || items.length === 0 || refreshing) return;
+    if (step !== 'payment' || !sandboxAvailable || items.length === 0 || refreshing) return;
     if (mountedTokenRef.current) return;
 
     let cancelled = false;
@@ -276,8 +304,6 @@ export const CheckoutPage = () => {
     const boot = async () => {
       setIsLoading(true);
       setError(null);
-      // Tracks how far the payment-form startup got, so a failure is reported
-      // under the stage that actually broke.
       let failureCategory = 'payment_assets_load_failed';
       try {
         const reuseOrderId = PaymentService.getReusablePendingOrderId(fingerprint);
@@ -319,18 +345,10 @@ export const CheckoutPage = () => {
         if (cancelled) return;
 
         setPendingOrderId(tokenResult.orderId);
-        if (typeof tokenResult.total === 'number') {
-          setChargedTotal(tokenResult.total);
-        }
+        if (typeof tokenResult.total === 'number') setChargedTotal(tokenResult.total);
         failureCategory = 'payment_token_failed';
-        if (!tokenResult.publicToken) {
-          throw new Error('Missing order access token');
-        }
-        PaymentService.rememberPendingCheckout(
-          tokenResult.orderId,
-          fingerprint,
-          tokenResult.publicToken,
-        );
+        if (!tokenResult.publicToken) throw new Error('Missing order access token');
+        PaymentService.rememberPendingCheckout(tokenResult.orderId, fingerprint, tokenResult.publicToken);
 
         failureCategory = 'payment_widget_mount_failed';
         await new Promise((r) => requestAnimationFrame(() => r(null)));
@@ -340,17 +358,10 @@ export const CheckoutPage = () => {
         PaymentService.mountCheckout(
           '#flitt-checkout',
           tokenResult.token,
+          { storeName: settings.storeName, siteUrl: settings.siteUrl },
           {
-            storeName: settings.storeName,
-            siteUrl: settings.siteUrl,
-          },
-          {
-            onSuccess: () => {
-              navigate(`/order-confirmation?order=${tokenResult.orderId}`);
-            },
-            onError: () => {
-              navigate(`/order-confirmation?order=${tokenResult.orderId}`);
-            },
+            onSuccess: () => navigate(`/order-confirmation?order=${tokenResult.orderId}`),
+            onError: () => navigate(`/order-confirmation?order=${tokenResult.orderId}`),
           },
         );
         mountedTokenRef.current = tokenResult.token;
@@ -372,7 +383,7 @@ export const CheckoutPage = () => {
     boot();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, refreshing]);
+  }, [step, refreshing, sandboxAvailable]);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -385,7 +396,7 @@ export const CheckoutPage = () => {
             <span className="text-gray-400 text-lg font-sans font-normal ml-2">{t('common.checkout')}</span>
           </div>
           <div className="flex items-center text-sm font-medium text-gray-500">
-            <Lock className="w-4 h-4 mr-1" /> {t('checkout.secure')}
+            {t('checkout.requestByChat')}
           </div>
         </div>
       </div>
@@ -396,37 +407,14 @@ export const CheckoutPage = () => {
             <div className="flex items-center mb-8">
               <div className={`flex items-center ${step === 'shipping' ? 'text-brand-green' : 'text-gray-400'}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step === 'shipping' ? 'border-brand-green font-bold' : 'border-gray-300'}`}>1</div>
-                <span className="ml-2 font-medium">{t('checkout.shipping')}</span>
+                <span className="ml-2 font-medium">{t('checkout.details')}</span>
               </div>
               <div className="w-12 h-px bg-gray-300 mx-4"></div>
-              <div className={`flex items-center ${step === 'payment' ? 'text-brand-green' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step === 'payment' ? 'border-brand-green font-bold' : 'border-gray-300'}`}>2</div>
-                <span className="ml-2 font-medium">{t('checkout.payment')}</span>
+              <div className={`flex items-center ${step !== 'shipping' ? 'text-brand-green' : 'text-gray-400'}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${step !== 'shipping' ? 'border-brand-green font-bold' : 'border-gray-300'}`}>2</div>
+                <span className="ml-2 font-medium">{step === 'payment' ? t('checkout.payment') : t('checkout.request')}</span>
               </div>
             </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-6">
-                {error}
-                {step === 'payment' && (
-                  <button
-                    type="button"
-                    className="ml-3 underline font-medium"
-                    onClick={() => {
-                      // The pending order stays: the same order is re-priced
-                      // and retried, so a merchant hiccup does not leave a
-                      // trail of abandoned orders or trip the throttle.
-                      mountedTokenRef.current = null;
-                      setError(null);
-                      setStep('shipping');
-                      setTimeout(() => setStep('payment'), 0);
-                    }}
-                  >
-                    {t('checkout.retry')}
-                  </button>
-                )}
-              </div>
-            )}
 
             {step === 'shipping' && (
               <form onSubmit={handleShippingSubmit} className="bg-white rounded-lg shadow-sm p-6 animate-fade-in">
@@ -622,14 +610,52 @@ export const CheckoutPage = () => {
                         ? t('checkout.checkingDelivery')
                         : !quoteResult
                           ? t('checkout.checkDelivery')
-                          : t('checkout.continueToPayment')}
+                          : t('checkout.continueToRequest')}
                     </Button>
                   </div>
                 </div>
               </form>
             )}
 
-            {step === 'payment' && (
+            {step === 'request' && (
+              <div className="bg-white rounded-lg shadow-sm p-6 animate-fade-in">
+                <h2 className="text-xl font-heading font-bold mb-3 flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-brand-green" />
+                  {t('checkout.requestTitle')}
+                </h2>
+                <ul className="space-y-2 text-sm text-gray-600 mb-8">
+                  <li>{t('checkout.requestPaymentSoon')}</li>
+                  <li>{t('checkout.requestDeliverySoon')}</li>
+                  <li>{t('checkout.requestConfirm')}</li>
+                </ul>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setStep('shipping')}
+                    className="text-gray-500 hover:text-gray-900 font-medium text-left"
+                  >
+                    {t('checkout.backToShipping')}
+                  </button>
+                  <Button type="button" size="lg" onClick={sendRequest}>
+                    {t('checkout.openChat')}
+                  </Button>
+                </div>
+                {sandboxAvailable && (
+                  <button
+                    type="button"
+                    className="mt-6 text-xs text-gray-400 hover:text-gray-700 underline"
+                    onClick={() => {
+                      mountedTokenRef.current = null;
+                      setStep('payment');
+                    }}
+                  >
+                    Test sandbox payment
+                  </button>
+                )}
+              </div>
+            )}
+
+            {step === 'payment' && sandboxAvailable && (
               <div className="bg-white rounded-lg shadow-sm p-6 animate-fade-in">
                 <h2 className="text-xl font-heading font-bold mb-2 flex items-center gap-2">
                   <CreditCard className="w-5 h-5 text-brand-green" />
@@ -637,6 +663,9 @@ export const CheckoutPage = () => {
                 </h2>
                 <p className="text-sm text-gray-500 mb-2">
                   {t('checkout.pay')} {fmt(displayTotal)} · {settings.currency || 'GEL'}
+                </p>
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mb-4">
+                  Sandbox only. This card form is not shown on the live site.
                 </p>
                 <p className="text-xs text-gray-400 mb-6">
                   <Trans
@@ -647,27 +676,21 @@ export const CheckoutPage = () => {
                     }}
                   />
                 </p>
-
+                {error && <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded mb-6">{error}</div>}
                 {isLoading && (
                   <div className="flex flex-col items-center justify-center py-16 text-gray-500 gap-3">
                     <Loader2 className="w-8 h-8 animate-spin text-brand-green" />
                     <p className="text-sm">{t('checkout.preparing')}</p>
                   </div>
                 )}
-
-                <div
-                  id="flitt-checkout"
-                  ref={flittRootRef}
-                  className={isLoading ? 'hidden' : 'min-h-[320px]'}
-                />
-
+                <div id="flitt-checkout" ref={flittRootRef} className={isLoading ? 'hidden' : 'min-h-[320px]'} />
                 <div className="mt-6 flex justify-between items-center">
                   <button
                     type="button"
                     onClick={() => {
                       mountedTokenRef.current = null;
                       setChargedTotal(null);
-                      setStep('shipping');
+                      setStep('request');
                     }}
                     className="text-gray-500 hover:text-gray-900 font-medium"
                   >

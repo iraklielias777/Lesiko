@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
 
 test('product page adds to bag and opens checkout', async ({ page }) => {
   await addInStockProduct(page);
-  await page.getByRole('link', { name: /Proceed to Checkout/ }).click();
+  await page.getByRole('link', { name: /Request this order/ }).click();
   await expect(page.getByRole('heading', { name: /Contact/ })).toBeVisible();
 });
 
@@ -44,21 +44,18 @@ test('live delivery quote from checkout (fallback or courier list)', async ({ pa
   await goToCheckout(page);
   await fillShipping(page);
 
-  await page.getByRole('button', { name: /Check delivery options|Continue to Payment/ }).click();
+  await page.getByRole('button', { name: /Check delivery options|Continue/ }).click();
 
   const courier = page.getByRole('radio').first();
   if (quoteJson.configured && Array.isArray(quoteJson.quotes) && quoteJson.quotes.length > 0) {
     await expect(courier).toBeVisible();
     await courier.check();
-    await page.getByRole('button', { name: 'Continue to Payment' }).click();
+    await page.getByRole('button', { name: 'Continue' }).click();
   }
 
-  await expect(page.getByRole('heading', { name: 'Payment Method' })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByText(/Pay GEL/)).toBeVisible();
-  await expect(page.locator('#flitt-checkout')).toHaveAttribute('data-flitt-stub', '1', { timeout: 20_000 });
-  expect(captured.quotes?.length).toBeGreaterThan(0);
-  const pending = captured.quotes?.[0] as { p_order?: { shippingQuote?: { source?: string } } };
-  expect(pending?.p_order?.shippingQuote?.source).toMatch(/quickshipper|fallback/);
+  await expect(page.getByRole('heading', { name: 'Send this order in chat' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('button', { name: 'Open chat' })).toBeVisible();
+  expect(captured.quotes?.length ?? 0).toBe(0);
 });
 
 test('mocked QuickShipper quotes: pick courier, persist snapshot, open payment', async ({ page }) => {
@@ -71,23 +68,17 @@ test('mocked QuickShipper quotes: pick courier, persist snapshot, open payment',
   await page.getByRole('button', { name: 'Check delivery options' }).click();
   await expect(page.getByText('Tb Delivery')).toBeVisible();
   await expect(page.getByText('Express Courier')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Continue to Payment' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Continue' })).toBeDisabled();
 
   await page.getByRole('radio', { name: /Tb Delivery/ }).check();
-  await expect(page.getByRole('button', { name: 'Continue to Payment' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Continue' })).toBeEnabled();
   await expect(page.locator('form').getByText('GEL\u00a08.50').or(page.locator('form').getByText('GEL 8.50'))).toBeVisible();
 
-  await page.getByRole('button', { name: 'Continue to Payment' }).click();
-  await expect(page.getByRole('heading', { name: 'Payment Method' })).toBeVisible();
-  await expect(page.getByText(/Pay GEL/)).toBeVisible();
-  await expect(page.locator('#flitt-checkout')).toHaveAttribute('data-flitt-stub', '1');
-
-  const body = captured.quotes?.find((row) => row && typeof row === 'object') as {
-    p_order?: { shippingQuote?: { source?: string; providerId?: number; fee?: number } };
-  } | undefined;
-  expect(body?.p_order?.shippingQuote?.source).toBe('quickshipper');
-  expect(Number(body?.p_order?.shippingQuote?.providerId)).toBe(31);
-  expect(Number(body?.p_order?.shippingQuote?.fee)).toBe(8.5);
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Send this order in chat' })).toBeVisible();
+  await expect(page.getByText('Card payment is coming soon.')).toBeVisible();
+  await expect(page.locator('#flitt-checkout')).toHaveCount(0);
+  expect(captured.quotes?.length ?? 0).toBe(0);
 });
 
 test('unknown address blocks payment and does not create an order', async ({ page }) => {
@@ -104,7 +95,7 @@ test('unknown address blocks payment and does not create an order', async ({ pag
 
   await page.getByRole('button', { name: 'Check delivery options' }).click();
   await expect(page.getByText(/could not find that address|street number or landmark/i)).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Payment Method' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Send this order in chat' })).toHaveCount(0);
   expect(captured.quotes?.length ?? 0).toBe(0);
 });
 

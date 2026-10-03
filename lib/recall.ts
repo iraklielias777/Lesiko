@@ -3,8 +3,19 @@ import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase } from '../lib/supabas
 const WIDGET_SRC = 'https://whisperr-recall.vercel.app/widget.js';
 const WIDGET_KEY = 'wk_live_jKiWmDLxo6hhqJYaqgSBP6lh';
 
+export type RecallOrderContext = {
+  name: string;
+  phone?: string;
+  email?: string;
+  address: string;
+  currency: string;
+  total: number;
+  items: { name: string; quantity: number; price: number }[];
+};
+
 type RecallApi = {
   open?: () => void;
+  setContext?: (context: RecallOrderContext) => void;
   identify?: (token: string) => void;
   purchase?: (order: { orderId: string; total: number; currency: string }) => void;
   on?: (event: string, fn: () => void) => void;
@@ -33,6 +44,21 @@ export const ensureRecall = (language: string) => {
     return;
   }
   if (!window.__recallWidgetLoaded) script.dataset.language = lang;
+};
+
+export const openRecall = (language: string, context: RecallOrderContext) => {
+  ensureRecall(language);
+  const send = () => {
+    if (!window.Recall?.open) return false;
+    window.Recall.setContext?.(context);
+    window.Recall.open();
+    return true;
+  };
+  if (send()) return;
+  const timer = window.setInterval(() => {
+    if (send()) window.clearInterval(timer);
+  }, 200);
+  window.setTimeout(() => window.clearInterval(timer), 8000);
 };
 
 export const identifyRecall = async () => {
