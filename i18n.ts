@@ -3,9 +3,26 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { resources } from './i18n/resources';
 
-// Simple persistence strategy
+const urlLang = (() => {
+  try {
+    const value = new URLSearchParams(window.location.search).get('lang');
+    if (value === 'en' || value === 'ka') return value;
+  } catch {
+    /* no window during a non-browser import */
+  }
+  return null;
+})();
+
+if (urlLang) {
+  try {
+    localStorage.setItem('lesiko-lang-chosen', '1');
+  } catch {
+    /* storage unavailable */
+  }
+}
+
 const storedLang = localStorage.getItem('i18nextLng');
-const defaultLang = storedLang || 'en';
+const defaultLang = urlLang || storedLang || 'en';
 
 i18n
   .use(initReactI18next)

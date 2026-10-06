@@ -60,7 +60,7 @@ interface SiteConfig {
 
 // Paths that exist but are not worth a crawl budget, and paths that would leak
 // a signed-in view if a crawler ever reached them.
-const DISALLOWED = ['/admin', '/cart', '/checkout', '/account', '/order-confirmation'];
+const DISALLOWED = ['/admin', '/cart', '/checkout', '/account', '/order-confirmation', '/track-order'];
 
 const STATIC_ROUTES: { path: string; key: string; priority: string; changefreq: string }[] = [
   { path: '/', key: 'home', priority: '1.0', changefreq: 'daily' },
@@ -227,17 +227,40 @@ const sitemap = async (config: SiteConfig): Promise<Response> => {
   ]);
 
   const entries: string[] = [];
+  const loc = (path: string) => escapeXml(config.siteUrl + (path === '/' ? '/' : path));
+  const withLang = (path: string, lang: 'en' | 'ka' | null) => {
+    const [pathname, search] = path.split('?');
+    const params = new URLSearchParams(search || '');
+    if (lang) params.set('lang', lang);
+    else params.delete('lang');
+    const query = params.toString();
+    const base = pathname || '/';
+    return `${base}${query ? `?${query}` : ''}`;
+  };
+  const alternates = (path: string) => {
+    const href = (lang: 'en' | 'ka') =>
+      loc(lang === config.defaultLanguage ? withLang(path, null) : withLang(path, lang));
+    return [
+      `    <xhtml:link rel="alternate" hreflang="en" href="${href('en')}" />`,
+      `    <xhtml:link rel="alternate" hreflang="ka" href="${href('ka')}" />`,
+      `    <xhtml:link rel="alternate" hreflang="x-default" href="${loc(withLang(path, null))}" />`
+    ].join('\n');
+  };
+  const otherLang = config.defaultLanguage === 'ka' ? 'en' : 'ka';
   const add = (path: string, lastmod?: string | null, changefreq = 'weekly', priority = '0.5') => {
-    entries.push(
-      [
-        '  <url>',
-        `    <loc>${escapeXml(config.siteUrl + (path === '/' ? '/' : path))}</loc>`,
-        lastmod ? `    <lastmod>${new Date(lastmod).toISOString().slice(0, 10)}</lastmod>` : '',
-        `    <changefreq>${changefreq}</changefreq>`,
-        `    <priority>${priority}</priority>`,
-        '  </url>'
-      ].filter(Boolean).join('\n')
-    );
+    for (const lang of [null, otherLang] as const) {
+      entries.push(
+        [
+          '  <url>',
+          `    <loc>${loc(withLang(path, lang))}</loc>`,
+          alternates(path),
+          lastmod ? `    <lastmod>${new Date(lastmod).toISOString().slice(0, 10)}</lastmod>` : '',
+          `    <changefreq>${changefreq}</changefreq>`,
+          `    <priority>${priority}</priority>`,
+          '  </url>'
+        ].filter(Boolean).join('\n')
+      );
+    }
   };
 
   for (const route of STATIC_ROUTES) {
@@ -265,7 +288,7 @@ const sitemap = async (config: SiteConfig): Promise<Response> => {
 
   const xml = [
     '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
     ...entries,
     '</urlset>',
     ''
@@ -290,6 +313,7 @@ interface Rendered {
   body: string;
   schema?: object | object[];
   status?: number;
+  ogType?: 'website' | 'product';
 }
 
 const absolute = (config: SiteConfig, path: string) =>
@@ -365,17 +389,17 @@ const renderProduct = async (config: SiteConfig, slug: string, isKa: boolean): P
         '@type': 'Offer',
         url: absolute(config, canonicalPath),
         priceCurrency: config.currency,
-        price: data.price,
+        price: Number(data.price || 0).toFixed(2),
         availability: (data.inventory_quantity || 0) > 0
           ? 'https://schema.org/InStock'
           : 'https://schema.org/OutOfStock',
         itemCondition: 'https://schema.org/NewCondition'
       },
-      aggregateRating: Number(data.average_rating) > 0
+      aggregateRating: Number(data.average_rating) > 0 && Number(data.review_count) > 0
         ? {
             '@type': 'AggregateRating',
             ratingValue: data.average_rating,
-            reviewCount: data.review_count || 1
+            reviewCount: data.review_count
           }
         : undefined
     },
@@ -383,18 +407,17 @@ const renderProduct = async (config: SiteConfig, slug: string, isKa: boolean): P
       '@context': 'https://schema.org',
       '@type': 'BreadcrumbList',
       itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: absolute(config, '/') },
-        { '@type': 'ListItem', position: 2, name: 'Shop', item: absolute(config, '/products') },
+        { '@type': 'ListItem', name: 'Home', item: absolute(config, '/') },
+        { '@type': 'ListItem', name: 'Shop', item: absolute(config, '/products') },
         ...(data.categories?.slug
           ? [{
               '@type': 'ListItem',
-              position: 3,
               name: categoryLabel,
               item: absolute(config, `/category/${data.categories.slug}`)
             }]
           : []),
-        { '@type': 'ListItem', position: 4, name, item: absolute(config, canonicalPath) }
-      ]
+        { '@type': 'ListItem', name, item: absolute(config, canonicalPath) }
+      ].map((item, index) => ({ ...item, position: index + 1 }))
     }
   ];
 
@@ -410,7 +433,7 @@ const renderProduct = async (config: SiteConfig, slug: string, isKa: boolean): P
       : ''
   ].join('\n');
 
-  return { seo, canonicalPath, heading: name, body, schema };
+  return { seo, canonicalPath, heading: name, body, schema, ogType: 'product' };
 };
 
 const renderListing = async (
@@ -692,9 +715,34 @@ const renderStatic = async (
   return { seo, canonicalPath, heading: seo.title, body: `<p>${escapeHtml(seo.description)}</p>` };
 };
 
+const withLangPath = (path: string, lang: 'en' | 'ka' | null) => {
+  const [pathname, search] = path.split('?');
+  const params = new URLSearchParams(search || '');
+  if (lang) params.set('lang', lang);
+  else params.delete('lang');
+  const query = params.toString();
+  const base = pathname || '/';
+  return `${base}${query ? `?${query}` : ''}`;
+};
+
 const document = (config: SiteConfig, rendered: Rendered, isKa: boolean): string => {
   const { seo } = rendered;
-  const canonical = absolute(config, rendered.canonicalPath);
+  const pageLang = isKa ? 'ka' : 'en';
+  const selfPath = !seo.noindex && pageLang !== config.defaultLanguage
+    ? withLangPath(rendered.canonicalPath, pageLang)
+    : withLangPath(rendered.canonicalPath, null);
+  const canonical = absolute(config, selfPath);
+  const languageHref = (lang: 'en' | 'ka') => absolute(
+    config,
+    lang === config.defaultLanguage
+      ? withLangPath(rendered.canonicalPath, null)
+      : withLangPath(rendered.canonicalPath, lang)
+  );
+  const hreflang = seo.noindex ? '' : [
+    `<link rel="alternate" hreflang="en" href="${escapeHtml(languageHref('en'))}" />`,
+    `<link rel="alternate" hreflang="ka" href="${escapeHtml(languageHref('ka'))}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(absolute(config, withLangPath(rendered.canonicalPath, null)))}" />`
+  ].join('\n    ');
   const schemas = rendered.schema
     ? (Array.isArray(rendered.schema) ? rendered.schema : [rendered.schema])
     : [];
@@ -705,7 +753,8 @@ const document = (config: SiteConfig, rendered: Rendered, isKa: boolean): string
     seo.keywords ? `<meta name="keywords" content="${escapeHtml(seo.keywords)}" />` : '',
     `<meta name="robots" content="${seo.noindex ? 'noindex, nofollow' : 'index, follow'}" />`,
     `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
-    `<meta property="og:type" content="website" />`,
+    hreflang,
+    `<meta property="og:type" content="${rendered.ogType || 'website'}" />`,
     `<meta property="og:site_name" content="${escapeHtml(config.storeName)}" />`,
     `<meta property="og:title" content="${escapeHtml(seo.title)}" />`,
     `<meta property="og:description" content="${escapeHtml(seo.description)}" />`,
@@ -819,13 +868,14 @@ Deno.serve(async req => {
 
   try {
     const config = await loadConfig(req);
-    const langParam = (url.searchParams.get('lang') || '').toLowerCase();
-    const isKa = langParam ? langParam === 'ka' : config.defaultLanguage === 'ka';
-
     if (route.startsWith('/robots')) return robots(config);
     if (route.startsWith('/sitemap')) return await sitemap(config);
     if (route.startsWith('/render')) {
-      return await render(config, url.searchParams.get('path') || '/', isKa);
+      const path = url.searchParams.get('path') || '/';
+      const pathLang = new URLSearchParams(path.split('?')[1] || '').get('lang');
+      const langParam = (url.searchParams.get('lang') || pathLang || '').toLowerCase();
+      const isKa = langParam ? langParam === 'ka' : config.defaultLanguage === 'ka';
+      return await render(config, path, isKa);
     }
 
     return new Response('Not found. Try /robots.txt, /sitemap.xml or /render?path=/', {

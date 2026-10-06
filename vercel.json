@@ -62,11 +62,11 @@
     },
     {
       "source": "/robots.txt",
-      "destination": "https://vhuagxhfmhzyfazbhwpx.supabase.co/functions/v1/seo/robots.txt"
+      "destination": "/api/seo?doc=robots"
     },
     {
       "source": "/sitemap.xml",
-      "destination": "https://vhuagxhfmhzyfazbhwpx.supabase.co/functions/v1/seo/sitemap.xml"
+      "destination": "/api/seo?doc=sitemap"
     },
     {
       "source": "/",
@@ -74,18 +74,39 @@
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Baiduspider|DuckDuckBot|Applebot).*"
+          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Google-InspectionTool|Googlebot-Image|Storebot-Google|Baiduspider|DuckDuckBot|Applebot|Yandex|PetalBot|GPTBot|ChatGPT-User|PerplexityBot).*"
+        },
+        {
+          "type": "query",
+          "key": "lang",
+          "value": "(en|ka)"
         }
       ],
-      "destination": "https://vhuagxhfmhzyfazbhwpx.supabase.co/functions/v1/seo/render?path=/"
+      "destination": "/api/seo?doc=render&path=/&lang=:lang"
     },
     {
-      "source": "/:path((?!assets/).*)",
+      "source": "/",
       "has": [
         {
           "type": "header",
           "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Baiduspider|DuckDuckBot|Applebot).*"
+          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Google-InspectionTool|Googlebot-Image|Storebot-Google|Baiduspider|DuckDuckBot|Applebot|Yandex|PetalBot|GPTBot|ChatGPT-User|PerplexityBot).*"
+        }
+      ],
+      "destination": "/api/seo?doc=render&path=/"
+    },
+    {
+      "source": "/:path((?!assets/|api/).*)",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Google-InspectionTool|Googlebot-Image|Storebot-Google|Baiduspider|DuckDuckBot|Applebot|Yandex|PetalBot|GPTBot|ChatGPT-User|PerplexityBot).*"
+        },
+        {
+          "type": "query",
+          "key": "lang",
+          "value": "(en|ka)"
         }
       ],
       "missing": [
@@ -94,7 +115,24 @@
           "key": "x-prerender-bypass"
         }
       ],
-      "destination": "https://vhuagxhfmhzyfazbhwpx.supabase.co/functions/v1/seo/render?path=/:path"
+      "destination": "/api/seo?doc=render&path=/:path&lang=:lang"
+    },
+    {
+      "source": "/:path((?!assets/|api/).*)",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Google-InspectionTool|Googlebot-Image|Storebot-Google|Baiduspider|DuckDuckBot|Applebot|Yandex|PetalBot|GPTBot|ChatGPT-User|PerplexityBot).*"
+        }
+      ],
+      "missing": [
+        {
+          "type": "header",
+          "key": "x-prerender-bypass"
+        }
+      ],
+      "destination": "/api/seo?doc=render&path=/:path"
     },
     {
       "source": "/(.*)",

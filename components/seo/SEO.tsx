@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../store/settings-store';
-import { absoluteUrl, applyTitleTemplate, pickLang, truncate } from '../../lib/seo';
+import { absoluteUrl, applyTitleTemplate, pickLang, truncate, withLang } from '../../lib/seo';
 
 /**
  * Writes the document head on every route change.
@@ -64,7 +64,17 @@ export const SEO: React.FC<SEOProps> = ({
   // Canonicals are built from the configured origin, never from the browser's:
   // a preview deployment pointing canonicals at itself competes with the real
   // site for the same keywords.
-  const canonical = absoluteUrl(settings.siteUrl, canonicalPath ?? location.pathname);
+  const pagePath = canonicalPath ?? location.pathname;
+  const lang: 'en' | 'ka' = isKa ? 'ka' : 'en';
+  const defaultLang: 'en' | 'ka' = settings.defaultLanguage === 'ka' ? 'ka' : 'en';
+  const languagePath = (code: 'en' | 'ka' | null) =>
+    code && code !== defaultLang ? withLang(pagePath, code) : withLang(pagePath, null);
+  const canonical = absoluteUrl(settings.siteUrl, noindex ? pagePath : languagePath(lang));
+  const alternates = noindex ? [] : [
+    { lang: 'en', href: absoluteUrl(settings.siteUrl, languagePath('en')) },
+    { lang: 'ka', href: absoluteUrl(settings.siteUrl, languagePath('ka')) },
+    { lang: 'x-default', href: absoluteUrl(settings.siteUrl, languagePath(null)) }
+  ];
   const shareImage = image || seo.defaults.ogImage || settings.ogImage || '';
   const verification = seo.verification || {};
 
@@ -129,6 +139,16 @@ export const SEO: React.FC<SEOProps> = ({
     }
     link.setAttribute('href', canonical);
 
+    document.head.querySelectorAll('link[rel="alternate"][data-seo-managed]').forEach(el => el.remove());
+    for (const alt of alternates) {
+      const el = document.createElement('link');
+      el.rel = 'alternate';
+      el.hreflang = alt.lang;
+      el.href = alt.href;
+      el.setAttribute(MANAGED, '');
+      document.head.appendChild(el);
+    }
+
     const scriptId = 'seo-structured-data';
     const existing = document.getElementById(scriptId);
     if (schemaJson) {
@@ -149,6 +169,7 @@ export const SEO: React.FC<SEOProps> = ({
     shareImage,
     type,
     canonical,
+    alternates.map(alt => alt.href).join('|'),
     siteName,
     schemaJson,
     noindex,

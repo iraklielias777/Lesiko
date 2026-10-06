@@ -53,6 +53,17 @@ export const applyTitleTemplate = (
  * Absolute URL for a storefront path. Prefers the configured origin because a
  * preview deployment must not emit canonicals pointing at itself.
  */
+/** Indexable language URL. `x-default` is the same path with no lang query. */
+export const withLang = (path: string, lang: 'en' | 'ka' | null): string => {
+  const [pathname, search] = path.split('?');
+  const params = new URLSearchParams(search || '');
+  if (lang) params.set('lang', lang);
+  else params.delete('lang');
+  const query = params.toString();
+  const base = pathname || '/';
+  return `${base}${query ? `?${query}` : ''}`;
+};
+
 export const absoluteUrl = (siteUrl: string, path: string): string => {
   const origin = clean(siteUrl).replace(/\/+$/, '')
     || (typeof window !== 'undefined' ? window.location.origin : '');

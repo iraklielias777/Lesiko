@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, ShoppingCart, Heart, User, Menu, X, LogOut, ChevronRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useCartStore } from '../../store/cart-store';
@@ -15,6 +15,8 @@ import { useFormatPrice } from '../../lib/format';
 
 const LanguageSwitch = ({ className = '' }: { className?: string }) => {
   const { i18n } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
   const active = (i18n.resolvedLanguage || i18n.language).startsWith('ka') ? 'ka' : 'en';
   const pick = (lng: 'en' | 'ka') => {
     try {
@@ -22,6 +24,9 @@ const LanguageSwitch = ({ className = '' }: { className?: string }) => {
     } catch {
       /* storage unavailable */
     }
+    const params = new URLSearchParams(location.search);
+    params.set('lang', lng);
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
     void i18n.changeLanguage(lng);
   };
   const button = (lng: 'en' | 'ka', label: string) => (
@@ -58,7 +63,23 @@ export const Header = () => {
   const [wordmarkHead, wordmarkTail] = splitWordmark(storeName);
   const fmt = useFormatPrice();
   const navigate = useNavigate();
+  const location = useLocation();
   const cartCount = getTotalItems();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const urlLang = params.get('lang');
+    const current = (i18n.resolvedLanguage || i18n.language).startsWith('ka') ? 'ka' : 'en';
+    if (urlLang === 'en' || urlLang === 'ka') {
+      if (urlLang !== current) {
+        try { localStorage.setItem(LANGUAGE_CHOSEN_KEY, '1'); } catch { /* ignore */ }
+        void i18n.changeLanguage(urlLang);
+      }
+      return;
+    }
+    params.set('lang', current);
+    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
+  }, [location.pathname, location.search, i18n, navigate]);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 10);
