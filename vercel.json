@@ -75,47 +75,9 @@
           "type": "header",
           "key": "user-agent",
           "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Google-InspectionTool|Googlebot-Image|Storebot-Google|Baiduspider|DuckDuckBot|Applebot|Yandex|PetalBot|GPTBot|ChatGPT-User|PerplexityBot).*"
-        },
-        {
-          "type": "query",
-          "key": "lang",
-          "value": "(en|ka)"
-        }
-      ],
-      "destination": "/api/seo?doc=render&path=/&lang=:lang"
-    },
-    {
-      "source": "/",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Google-InspectionTool|Googlebot-Image|Storebot-Google|Baiduspider|DuckDuckBot|Applebot|Yandex|PetalBot|GPTBot|ChatGPT-User|PerplexityBot).*"
         }
       ],
       "destination": "/api/seo?doc=render&path=/"
-    },
-    {
-      "source": "/:path((?!assets/|api/).*)",
-      "has": [
-        {
-          "type": "header",
-          "key": "user-agent",
-          "value": "(?i).*(facebookexternalhit|Facebot|Twitterbot|Slackbot|Slack-ImgProxy|WhatsApp|TelegramBot|LinkedInBot|Discordbot|Pinterest|bingbot|Googlebot|Google-InspectionTool|Googlebot-Image|Storebot-Google|Baiduspider|DuckDuckBot|Applebot|Yandex|PetalBot|GPTBot|ChatGPT-User|PerplexityBot).*"
-        },
-        {
-          "type": "query",
-          "key": "lang",
-          "value": "(en|ka)"
-        }
-      ],
-      "missing": [
-        {
-          "type": "header",
-          "key": "x-prerender-bypass"
-        }
-      ],
-      "destination": "/api/seo?doc=render&path=/:path&lang=:lang"
     },
     {
       "source": "/:path((?!assets/|api/).*)",
