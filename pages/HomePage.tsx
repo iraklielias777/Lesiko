@@ -167,7 +167,7 @@ export const HomePage = () => {
         title={seo.title}
         description={seo.description}
         keywords={seo.keywords}
-        image={seo.image}
+        image={heroImage || seo.image}
         canonicalPath="/"
         noindex={seo.noindex}
         structuredData={structuredData}

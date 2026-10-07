@@ -447,6 +447,7 @@ const renderListing = async (
     .limit(48);
 
   let entity: Record<string, string | undefined> = {};
+  let entityImage = '';
   let heading = '';
   let generatedDescription = '';
 
@@ -459,6 +460,7 @@ const renderListing = async (
     if (!category) return null;
 
     heading = pickLang(category.label, category.label_ka, isKa);
+    entityImage = category.image || '';
     query = query.eq('categories.slug', opts.categorySlug);
 
     if (opts.subSlug) {
@@ -493,6 +495,7 @@ const renderListing = async (
     if (!brand) return null;
 
     heading = brand.name;
+    entityImage = brand.image || '';
     generatedDescription = brand.description || `Shop the ${brand.name} range at ${config.storeName}.`;
     query = query.eq('brands.slug', opts.brandSlug);
     entity = {
@@ -510,6 +513,7 @@ const renderListing = async (
 
   const { data: products } = await query;
   const rows = products || [];
+  const firstProductImage = Array.isArray(rows[0]?.images) ? rows[0].images[0]?.url || '' : '';
 
   const hasEntity = Object.values(entity).some(Boolean) || !!heading;
   const seo = hasEntity
@@ -518,13 +522,15 @@ const renderListing = async (
         storeName: config.storeName,
         ogImage: config.ogImage,
         generatedTitle: heading,
-        generatedDescription
+        generatedDescription,
+        image: entityImage || firstProductImage
       })
     : resolvePageSeo(config.seo, opts.pageKey, {
         isKa,
         storeName: config.storeName,
         ogImage: config.ogImage
       });
+  if (!seo.image && firstProductImage) seo.image = firstProductImage;
 
   const schema = {
     '@context': 'https://schema.org',
@@ -560,15 +566,19 @@ const renderStatic = async (
   });
 
   if (pageKey === 'home') {
-    const [{ data: categories }, { data: products }] = await Promise.all([
+    const [{ data: categories }, { data: products }, { data: hero }] = await Promise.all([
       db.from('categories').select('slug, label, label_ka').order('position'),
       // Trending first, then newest — the same fallback the storefront rail
       // uses, so a catalogue with nothing flagged still renders a list.
       db.from('products').select('slug, name, name_ka, price, images')
         .order('is_trending', { ascending: false })
         .order('created_at', { ascending: false })
-        .limit(12)
+        .limit(12),
+      db.from('site_content').select('content').eq('key', 'homepage_hero').maybeSingle()
     ]);
+    const heroImage = hero?.content?.image || '';
+    const firstProductImage = Array.isArray(products?.[0]?.images) ? products?.[0]?.images?.[0]?.url || '' : '';
+    if (!seo.image) seo.image = heroImage || firstProductImage || undefined;
 
     const schema = {
       '@context': 'https://schema.org',
@@ -725,8 +735,31 @@ const withLangPath = (path: string, lang: 'en' | 'ka' | null) => {
   return `${base}${query ? `?${query}` : ''}`;
 };
 
+const shareTypeFor = (rendered: Rendered): string => {
+  const path = rendered.canonicalPath;
+  if (rendered.ogType === 'product' || path.startsWith('/product/')) return 'product';
+  if (path.startsWith('/category/')) return 'category';
+  if (path.startsWith('/brand/')) return 'brand';
+  if (path === '/sale') return 'sale';
+  if (path === '/help') return 'help';
+  if (LEGAL_KEYS.some(key => path === `/${key}`)) return 'legal';
+  return 'website';
+};
+
+const shareImageUrl = (config: SiteConfig, rendered: Rendered): string => {
+  const params = new URLSearchParams({
+    title: rendered.seo.title,
+    type: shareTypeFor(rendered)
+  });
+  if (rendered.seo.image && !rendered.seo.image.includes('/api/og?')) {
+    params.set('image', rendered.seo.image);
+  }
+  return `${config.siteUrl}/api/og?${params.toString()}`;
+};
+
 const document = (config: SiteConfig, rendered: Rendered, isKa: boolean): string => {
   const { seo } = rendered;
+  const shareImage = shareImageUrl(config, rendered);
   const pageLang = isKa ? 'ka' : 'en';
   const selfPath = !seo.noindex && pageLang !== config.defaultLanguage
     ? withLangPath(rendered.canonicalPath, pageLang)
@@ -760,11 +793,16 @@ const document = (config: SiteConfig, rendered: Rendered, isKa: boolean): string
     `<meta property="og:description" content="${escapeHtml(seo.description)}" />`,
     `<meta property="og:url" content="${escapeHtml(canonical)}" />`,
     `<meta property="og:locale" content="${isKa ? 'ka_GE' : 'en_US'}" />`,
-    seo.image ? `<meta property="og:image" content="${escapeHtml(seo.image)}" />` : '',
-    `<meta name="twitter:card" content="${seo.image ? 'summary_large_image' : 'summary'}" />`,
+    `<meta property="og:image" content="${escapeHtml(shareImage)}" />`,
+    `<meta property="og:image:secure_url" content="${escapeHtml(shareImage)}" />`,
+    `<meta property="og:image:alt" content="${escapeHtml(seo.title)}" />`,
+    '<meta property="og:image:width" content="1200" />',
+    '<meta property="og:image:height" content="630" />',
+    '<meta property="og:image:type" content="image/png" />',
+    '<meta name="twitter:card" content="summary_large_image" />',
     `<meta name="twitter:title" content="${escapeHtml(seo.title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(seo.description)}" />`,
-    seo.image ? `<meta name="twitter:image" content="${escapeHtml(seo.image)}" />` : '',
+    `<meta name="twitter:image" content="${escapeHtml(shareImage)}" />`,
     config.seo.verification.google
       ? `<meta name="google-site-verification" content="${escapeHtml(config.seo.verification.google)}" />`
       : '',

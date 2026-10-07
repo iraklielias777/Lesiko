@@ -71,6 +71,25 @@ export const absoluteUrl = (siteUrl: string, path: string): string => {
   return `${origin}${suffix === '/' ? '' : suffix}` || suffix;
 };
 
+/**
+ * Every share card uses the same branded renderer. The source image remains
+ * optional: product photography is composed into the card, while text-only
+ * pages get the quieter LesiKo brand panel.
+ */
+export const ogImageUrl = (
+  siteUrl: string,
+  {
+    title,
+    image,
+    type = 'website'
+  }: { title: string; description?: string; image?: string; type?: string }
+): string => {
+  const base = absoluteUrl(siteUrl, '/api/og');
+  const params = new URLSearchParams({ title, type });
+  if (image && !image.includes('/api/og?')) params.set('image', image);
+  return `${base}?${params.toString()}`;
+};
+
 export const truncate = (value: string, max = 160): string => {
   const text = clean(value).replace(/\s+/g, ' ');
   if (text.length <= max) return text;

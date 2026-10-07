@@ -45,7 +45,7 @@ export const BrandIndexPage = () => {
         title={seo.title}
         description={seo.description}
         keywords={seo.keywords}
-        image={seo.image}
+        image={brands[0]?.image || seo.image}
         noindex={seo.noindex}
         structuredData={structuredData}
       />

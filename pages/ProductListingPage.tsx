@@ -324,7 +324,7 @@ export const ProductListingPage = () => {
         title={resolved.title}
         description={resolved.description}
         keywords={resolved.keywords}
-        image={resolved.image}
+        image={resolved.image || results.products[0]?.images?.[0]?.url}
         canonicalPath={canonicalPath}
         noindex={resolved.noindex}
         structuredData={[breadcrumbSchema, itemListSchema]}

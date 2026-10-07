@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useSettingsStore } from '../../store/settings-store';
-import { absoluteUrl, applyTitleTemplate, pickLang, truncate, withLang } from '../../lib/seo';
+import { absoluteUrl, applyTitleTemplate, ogImageUrl, pickLang, truncate, withLang } from '../../lib/seo';
 
 /**
  * Writes the document head on every route change.
@@ -26,6 +26,16 @@ interface SEOProps {
 
 /** Removes anything a previous route added, so tags never leak between pages. */
 const MANAGED = 'data-seo-managed';
+
+const shareTypeFor = (path: string, type: SEOProps['type']): string => {
+  if (type === 'product' || path.startsWith('/product/')) return 'product';
+  if (path.startsWith('/category/')) return 'category';
+  if (path.startsWith('/brand/')) return 'brand';
+  if (path === '/sale') return 'sale';
+  if (path === '/help') return 'help';
+  if (['/terms', '/privacy', '/delivery', '/returns'].includes(path)) return 'legal';
+  return 'website';
+};
 
 export const SEO: React.FC<SEOProps> = ({
   title,
@@ -75,7 +85,13 @@ export const SEO: React.FC<SEOProps> = ({
     { lang: 'ka', href: absoluteUrl(settings.siteUrl, languagePath('ka')) },
     { lang: 'x-default', href: absoluteUrl(settings.siteUrl, languagePath(null)) }
   ];
-  const shareImage = image || seo.defaults.ogImage || settings.ogImage || '';
+  const shareSource = image || seo.defaults.ogImage || settings.ogImage || undefined;
+  const shareImage = ogImageUrl(settings.siteUrl, {
+    title: finalTitle,
+    description: finalDesc,
+    image: shareSource,
+    type: shareTypeFor(pagePath, type)
+  });
   const verification = seo.verification || {};
 
   const schemaJson = structuredData ? JSON.stringify(structuredData) : '';
@@ -117,12 +133,20 @@ export const SEO: React.FC<SEOProps> = ({
 
     if (shareImage) {
       upsert('property', 'og:image', shareImage);
+      upsert('property', 'og:image:secure_url', shareImage);
       upsert('property', 'og:image:alt', finalTitle);
+      upsert('property', 'og:image:width', '1200');
+      upsert('property', 'og:image:height', '630');
+      upsert('property', 'og:image:type', 'image/png');
       upsert('name', 'twitter:image', shareImage);
     } else {
       // A stale image from the previous route is worse than none at all.
       remove('property', 'og:image');
+      remove('property', 'og:image:secure_url');
       remove('property', 'og:image:alt');
+      remove('property', 'og:image:width');
+      remove('property', 'og:image:height');
+      remove('property', 'og:image:type');
       remove('name', 'twitter:image');
     }
 
